@@ -1,18 +1,20 @@
-// app.js (Corrected Full Version)
+// app.js (Corrected Again - Focused on Stability)
 console.log("App.js loading...");
 
 // --- DOM Element References ---
-const statusMessage = document.getElementById('status-message');
-const timerDisplay = document.getElementById('timer-display');
-const gameArea = document.getElementById('game-area');
-const playerList = document.getElementById('player-list'); // Parent for event delegation
-const questionDisplay = document.getElementById('question-display');
-const answerArea = document.getElementById('answer-area'); // Still here but hidden
-const inputArea = document.getElementById('input-area');
-const inputLabel = document.getElementById('input-label');
-const gameInput = document.getElementById('game-input');
-const submitButton = document.getElementById('submit-button');
-const rulesBox = document.getElementById('rules-box');
+// Use functions to get elements, allows script to load even if DOM isn't fully ready? (Less likely needed now but safer)
+const getElem = (id) => document.getElementById(id);
+const statusMessage = getElem('status-message');
+const timerDisplay = getElem('timer-display');
+const gameArea = getElem('game-area');
+const playerList = getElem('player-list');
+const questionDisplay = getElem('question-display');
+const answerArea = getElem('answer-area');
+const inputArea = getElem('input-area');
+const inputLabel = getElem('input-label');
+const gameInput = getElem('game-input');
+const submitButton = getElem('submit-button');
+const rulesBox = getElem('rules-box');
 
 // --- Client State ---
 let isInGame = false;
@@ -23,28 +25,35 @@ let currentAskerId = null;
 let phaseEndTime = 0;
 let timerInterval = null;
 let hasVotedThisRound = false;
+let eliminatedPlayerRoles = {}; // { playerId: boolean (isHuman) }
 const QUESTION_MAX_LENGTH = 40;
 const ANSWER_MAX_LENGTH = 100;
 
 // --- Socket.IO Connection ---
-const socket = io();
+// Ensure io() is called after the library is loaded
+let socket;
+try {
+     socket = io();
+     console.log("Socket.IO initialized.");
+} catch (err) {
+     console.error("Failed to initialize Socket.IO. Is the library included correctly?", err);
+     if (statusMessage) statusMessage.textContent = "Error loading game library.";
+     // Stop further execution if socket fails
+     throw new Error("Socket.IO init failed");
+}
+
 
 // --- Helper Functions ---
 function updateTimerDisplay() {
     const now = Date.now();
     const endTime = typeof phaseEndTime === 'number' ? phaseEndTime : now;
     const timeLeft = Math.max(0, Math.ceil((endTime - now) / 1000));
-    if (timerDisplay) {
+    if (timerDisplay) { // Check element exists
         timerDisplay.textContent = `Time left: ${timeLeft}s`;
     }
     if (timeLeft <= 0) {
-        if (timerInterval) {
-            clearInterval(timerInterval);
-            timerInterval = null;
-        }
-        if (timerDisplay) {
-            timerDisplay.textContent = "Time's up!";
-        }
+        if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+        if (timerDisplay) { timerDisplay.textContent = "Time's up!"; }
     }
 }
 
@@ -52,7 +61,7 @@ function startTimer(durationSeconds) {
     if (timerInterval) { clearInterval(timerInterval); }
     const durationMs = (typeof durationSeconds === 'number' && durationSeconds > 0) ? durationSeconds * 1000 : 0;
     phaseEndTime = Date.now() + durationMs;
-    updateTimerDisplay();
+    updateTimerDisplay(); // Update immediately
     if (durationMs > 0) {
         timerInterval = setInterval(updateTimerDisplay, 1000);
     }
@@ -60,80 +69,133 @@ function startTimer(durationSeconds) {
 
 function stopTimer() {
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
-    if (timerDisplay) { timerDisplay.textContent = ''; }
+    if (timerDisplay) { timerDisplay.textContent = ''; } // Check element
 }
 
 function renderEmojiAvatar(emojiString) {
     const avatarSpan = document.createElement('span');
-    avatarSpan.textContent = emojiString || '❓'; // Use question mark if missing
+    avatarSpan.textContent = emojiString || '❓';
     return avatarSpan;
 }
 
-function renderPlayerList(players, displayData = {}) {
-    if (!playerList) { console.error("Player list element not found"); return; }
-    playerList.innerHTML = '';
-    if (!Array.isArray(players)) { console.error("Invalid players data for render"); return; }
+// Consolidated Render/UI Update Function
+function updateGameUI(players, displayData = {}) {
+    if (!playerList) { console.error("Player list element not found for update"); return; }
+    playerList.innerHTML = ''; // Clear previous list
+    if (!Array.isArray(players)) { console.error("Invalid players data for update"); return; }
+
+    console.log(`Updating UI for phase: ${currentPhase || 'N/A'}. Data:`, displayData);
 
     players.forEach(player => {
         if (!player || typeof player.id === 'undefined') { console.warn("Skipping invalid player data", player); return; }
 
-        const playerCard = document.createElement('div'); playerCard.classList.add('player-card'); playerCard.dataset.playerId = player.id; playerCard.classList.remove('current-asker', 'eliminated-card');
+        const playerCard = document.createElement('div');
+        playerCard.classList.add('player-card');
+        playerCard.dataset.playerId = player.id;
+        playerCard.classList.remove('current-asker', 'eliminated-card'); // Reset dynamic classes
 
+        // Apply base status classes
         if (player.status !== 'active') { playerCard.classList.add('eliminated'); }
         if (player.id === myPlayerId) { playerCard.classList.add('is-me'); }
-        if (player.id === currentAskerId && currentPhase !== 'REVEAL') { playerCard.classList.add('current-asker'); }
 
-        const avatarContainer = document.createElement('div');
-        avatarContainer.classList.add('avatar-container');
-        const avatarElement = renderEmojiAvatar(player.avatarEmoji);
-        avatarContainer.appendChild(avatarElement);
+        // Create elements (safer checks inside)
+        const avatarContainer = document.createElement('div'); avatarContainer.classList.add('avatar-container');
+        const avatarElement = renderEmojiAvatar(player.avatarEmoji); avatarContainer.appendChild(avatarElement);
 
         const nameElement = document.createElement('span'); nameElement.classList.add('player-name'); nameElement.textContent = player.name || '???'; if (player.id === myPlayerId) nameElement.textContent += " (You)";
+
+        const roleLabelElement = document.createElement('span'); roleLabelElement.classList.add('player-role-label'); roleLabelElement.style.display = 'none'; // Hide initially
+
         const thinkingSpan = document.createElement('span'); thinkingSpan.classList.add('thinking-indicator'); thinkingSpan.style.display = 'none';
 
         const detailsElement = document.createElement('p'); detailsElement.classList.add('player-details'); detailsElement.style.display = 'none';
+
         const voteButtonContainer = document.createElement('div'); voteButtonContainer.classList.add('vote-button-container'); voteButtonContainer.style.display = 'none';
 
-        playerCard.appendChild(avatarContainer); playerCard.appendChild(nameElement); playerCard.appendChild(thinkingSpan);
-        playerCard.appendChild(detailsElement); playerCard.appendChild(voteButtonContainer);
+        // Append elements
+        playerCard.appendChild(avatarContainer); playerCard.appendChild(nameElement); playerCard.appendChild(roleLabelElement); playerCard.appendChild(thinkingSpan); playerCard.appendChild(detailsElement); playerCard.appendChild(voteButtonContainer);
         playerList.appendChild(playerCard);
-    });
 
-    // Call phase-specific UI setup
-    if (currentPhase === 'VOTING' && displayData.answers) { setupVotingUI(displayData.answers); }
-    else if (currentPhase === 'REVEAL' && displayData.results) { setupRevealUI(displayData.results); }
+        // --- Phase-specific content within the card ---
+
+        // Show persistent role label if eliminated
+        if (player.status !== 'active' && eliminatedPlayerRoles.hasOwnProperty(player.id)) {
+            const isHuman = eliminatedPlayerRoles[player.id];
+            roleLabelElement.textContent = isHuman ? '❌Human' : '😅AI';
+            roleLabelElement.style.display = 'block';
+        }
+
+        // Content for VOTING phase
+        if (currentPhase === 'VOTING') {
+             detailsElement.classList.add('is-answer'); // Add answer style class
+             const answerInfo = displayData.answers?.[player.id];
+             if (answerInfo) { detailsElement.textContent = `"${answerInfo.answer}"`; }
+             else if (player.id === currentAskerId) { detailsElement.textContent = `(Asker)`; }
+             else { detailsElement.textContent = `(No Ans)`; }
+             detailsElement.style.display = 'block';
+
+             if (player.status === 'active') { // Add vote button if active
+                 voteButtonContainer.innerHTML = ''; voteButtonContainer.style.display = 'block';
+                 const voteButton = document.createElement('button'); voteButton.classList.add('vote-button'); voteButton.dataset.votedPlayerId = player.id; voteButton.textContent = `That's AI!`;
+                 if (hasVotedThisRound) { voteButton.disabled = true; }
+                 voteButtonContainer.appendChild(voteButton);
+                 // Show thinking indicator if haven't voted
+                  if (thinkingSpan && !hasVotedThisRound) { thinkingSpan.style.display = 'inline-block'; }
+             }
+        }
+        // Content for REVEAL phase
+        else if (currentPhase === 'REVEAL') {
+            detailsElement.classList.remove('is-answer'); // Remove answer style
+            const results = displayData.results || {};
+            const voteInfo = results.votes || {};
+            const voteCount = results.voteCounts?.[player.id] || 0;
+            let revealText = `Votes: ${voteCount}`;
+            const voters = [];
+            for (const voterId in voteInfo) { if (voteInfo[voterId] === player.id) { const voter = players.find(p => p.id === voterId); voters.push(voter?.name || '???'); } }
+            if (voters.length > 0) { revealText += ` (from ${voters.join(', ')})`; }
+            detailsElement.innerHTML = revealText;
+            detailsElement.style.display = 'block';
+
+            // Highlight if eliminated this round
+             const eliminatedInfo = results.eliminatedDetails?.find(e => e.id === playerId);
+             if (eliminatedInfo) {
+                 playerCard.classList.add('eliminated-card');
+                 // Role label is handled above by checking status
+             }
+        }
+         // Content for ASKING/ANSWERING phase (Thinking indicators)
+         else if (currentPhase === 'ASKING' && player.id === currentAskerId && player.id !== myPlayerId) {
+             if (thinkingSpan) thinkingSpan.style.display = 'inline-block';
+         } else if (currentPhase === 'ANSWERING' && player.status === 'active' && player.id !== currentAskerId) {
+              if (thinkingSpan) thinkingSpan.style.display = 'inline-block';
+         }
+    });
 }
 
-function setupVotingUI(answers) {
-    console.log("Setting up Voting UI with answers:", answers);
-    document.querySelectorAll('.player-card').forEach(playerCard => {
-        const playerId = playerCard.dataset.playerId; if (!playerId) return; const player = currentPlayers.find(p => p.id === playerId); if (!player) return;
-        const detailsElement = playerCard.querySelector('.player-details'); if (detailsElement) { detailsElement.classList.add('is-answer'); if (answers[playerId]) detailsElement.textContent = `"${answers[playerId].answer}"`; else if (playerId === currentAskerId) detailsElement.textContent = `(Asker)`; else detailsElement.textContent = `(No Ans)`; detailsElement.style.display = 'block'; }
-        const voteButtonContainer = playerCard.querySelector('.vote-button-container'); if (voteButtonContainer && player.status === 'active') { voteButtonContainer.innerHTML = ''; voteButtonContainer.style.display = 'block'; const voteButton = document.createElement('button'); voteButton.classList.add('vote-button'); voteButton.dataset.votedPlayerId = player.id; voteButton.textContent = `Vote`; if (hasVotedThisRound) voteButton.disabled = true; voteButtonContainer.appendChild(voteButton); } else if (voteButtonContainer) { voteButtonContainer.style.display = 'none'; }
-        const thinkingSpan = playerCard.querySelector('.thinking-indicator'); if (thinkingSpan && player.status === 'active' && !hasVotedThisRound) { thinkingSpan.style.display = 'inline-block'; } // Show if active and haven't voted
-    });
-}
-
-function setupRevealUI(results) {
-    console.log("Setting up Reveal UI with results:", results); const { voteCounts = {}, eliminatedIds = [], votes = {} } = results;
-    document.querySelectorAll('.player-card').forEach(playerCard => {
-        const playerId = playerCard.dataset.playerId; if (!playerId) return; const player = currentPlayers.find(p => p.id === playerId); if (!player) return;
-        const detailsElement = playerCard.querySelector('.player-details'); if (detailsElement) { detailsElement.classList.remove('is-answer'); detailsElement.style.display = 'block'; let revealText = `Votes: ${voteCounts[playerId] || 0}`; const voters = []; for (const voterId in votes) { if (votes[voterId] === playerId) { const voter = currentPlayers.find(p => p.id === voterId); voters.push(voter?.name || '???'); } } if (voters.length > 0) revealText += ` (from ${voters.join(', ')})`; detailsElement.innerHTML = revealText; }
-        if (eliminatedIds.includes(playerId)) { playerCard.classList.add('eliminated-card'); const nameEl = playerCard.querySelector('.player-name'); if (nameEl) nameEl.innerHTML += " <span style='color:var(--color-status-elim);font-weight:bold;'>ELIMINATED!</span>"; }
-    });
-}
 
 function handleSubmit() {
     if (!gameInput || !submitButton) { console.error("Input elements missing"); return; }
     const inputValue = gameInput.value.trim();
-    if (currentPhase === 'ASKING') {
-        if (!inputValue) { alert("Please enter a question."); return; }
-        if (inputValue.length > QUESTION_MAX_LENGTH) { alert(`Question max length is ${QUESTION_MAX_LENGTH}.`); return; }
-        console.log('Submitting question:', inputValue); socket.emit('submit_question', inputValue); gameInput.disabled = true; submitButton.disabled = true; submitButton.textContent = 'Sent'; hideMyThinkingIndicator();
-    } else if (currentPhase === 'ANSWERING') {
-        if (!inputValue) { alert("Please enter an answer."); return; }
-        if (inputValue.length > ANSWER_MAX_LENGTH) { alert(`Answer max length is ${ANSWER_MAX_LENGTH}.`); return; }
-        console.log('Submitting answer:', inputValue); socket.emit('submit_answer', inputValue); gameInput.disabled = true; submitButton.disabled = true; submitButton.textContent = 'Sent'; hideMyThinkingIndicator();
+    const currentSubmitPhase = currentPhase; // Capture phase at time of submit attempt
+
+    // Disable UI immediately
+    gameInput.disabled = true;
+    submitButton.disabled = true;
+    hideMyThinkingIndicator(); // Hide indicator early
+
+    if (currentSubmitPhase === 'ASKING') {
+        if (!inputValue) { alert("Please enter a question."); gameInput.disabled = false; submitButton.disabled = false; return; } // Re-enable on simple validation fail
+        if (inputValue.length > QUESTION_MAX_LENGTH) { alert(`Max ${QUESTION_MAX_LENGTH} chars.`); gameInput.disabled = false; submitButton.disabled = false; return; }
+        console.log('Submitting question:', inputValue); socket.emit('submit_question', inputValue); submitButton.textContent = 'Sent';
+    } else if (currentSubmitPhase === 'ANSWERING') {
+        if (!inputValue) { alert("Please enter an answer."); gameInput.disabled = false; submitButton.disabled = false; return; }
+        if (inputValue.length > ANSWER_MAX_LENGTH) { alert(`Max ${ANSWER_MAX_LENGTH} chars.`); gameInput.disabled = false; submitButton.disabled = false; return; }
+        console.log('Submitting answer:', inputValue); socket.emit('submit_answer', inputValue); submitButton.textContent = 'Sent';
+    } else {
+         // If phase changed before submit processed, maybe don't send anything
+         console.warn(`Submit button clicked but phase is no longer ${currentSubmitPhase}, it's ${currentPhase}. Ignoring.`);
+          gameInput.disabled = false; // Re-enable just in case
+          submitButton.disabled = false;
     }
 }
 
@@ -149,182 +211,133 @@ function hideMyThinkingIndicator() { hideThinkingIndicator(myPlayerId); }
 
 // --- Socket.IO Event Listeners ---
 socket.on('connect', () => {
-    console.log('Connected:', socket.id);
-    isInGame = false;
-    myPlayerId = null;
-    currentPlayers = [];
-    currentPhase = null;
-    currentAskerId = null;
-    hasVotedThisRound = false;
-    if (gameArea) gameArea.style.display = 'none';
-    if (inputArea) inputArea.style.display = 'none';
-    if (playerList) playerList.innerHTML = '';
-    if (questionDisplay) questionDisplay.textContent = '';
-    if (answerArea) answerArea.innerHTML = '';
-    stopTimer();
-    if (statusMessage) statusMessage.innerHTML = 'Connected! Waiting for players...';
+    console.log('Socket connected! ID:', socket.id);
+    isInGame = false; myPlayerId = null; currentPlayers = []; currentPhase = null; currentAskerId = null; hasVotedThisRound = false; eliminatedPlayerRoles = {};
+    // Safely update UI elements
+    if (gameArea) gameArea.style.display = 'none'; if (inputArea) inputArea.style.display = 'none'; if (playerList) playerList.innerHTML = '';
+    if (questionDisplay) questionDisplay.textContent = ''; if (answerArea) answerArea.innerHTML = ''; stopTimer();
+    if (statusMessage) statusMessage.innerHTML = 'Connected! Waiting...'; // Clear any previous dots
     if (rulesBox) rulesBox.style.display = 'block';
     document.body.classList.remove('game-over');
 });
-socket.on('disconnect', () => {
-    console.log('Disconnected'); if (statusMessage) statusMessage.textContent = 'Disconnected.'; isInGame = false; currentPhase = null; currentAskerId = null; hasVotedThisRound = false;
-    if (gameArea) gameArea.style.display = 'none'; if (inputArea) inputArea.style.display = 'none'; stopTimer();
+socket.on('disconnect', (reason) => {
+    console.log('Socket disconnected:', reason); if (statusMessage) statusMessage.innerHTML = 'Disconnected. Refresh?';
+    isInGame = false; currentPhase = null; currentAskerId = null; hasVotedThisRound = false; eliminatedPlayerRoles = {};
+    if (gameArea) gameArea.style.display = 'none'; if (inputArea) inputArea.style.display = 'none'; if (rulesBox) rulesBox.style.display = 'none';
+    stopTimer();
 });
-socket.on('connect_error', () => {
-    console.error('Connect Error'); if (statusMessage) statusMessage.textContent = 'Connect Fail.'; isInGame = false; currentPhase = null; currentAskerId = null; hasVotedThisRound = false; stopTimer();
+socket.on('connect_error', (error) => {
+    console.error('Socket Connection Error:', error); if (statusMessage) statusMessage.innerHTML = 'Connection Failed.';
+    isInGame = false; currentPhase = null; currentAskerId = null; hasVotedThisRound = false; eliminatedPlayerRoles = {};
+    if (rulesBox) rulesBox.style.display = 'none'; stopTimer();
 });
+
 socket.on('waiting_player_count', (count) => {
     if (!isInGame && statusMessage) {
         const maxPlayers = 3;
-        statusMessage.innerHTML = `Waiting for Human Players (${count}/${maxPlayers})<span class="waiting-dots"><span>.</span><span>.</span><span>.</span></span><br>The game starts when 3 humans join.`;
+        statusMessage.innerHTML = `Waiting for Human Players (${count}/${maxPlayers}<span class="waiting-dots"></span>)<br>Game starts when 3 humans join.`;
         if (rulesBox) rulesBox.style.display = 'block';
         if (gameArea) gameArea.style.display = 'none';
     }
 });
+
 socket.on('game_start', (initialData) => {
-    console.log('Game Start:', initialData); if (!initialData?.yourPlayerId || !Array.isArray(initialData.players)) return;
-    isInGame = true; myPlayerId = initialData.yourPlayerId; currentPlayers = initialData.players; currentPhase = null; currentAskerId = null; hasVotedThisRound = false;
-    console.log("Me:", myPlayerId); if (statusMessage) statusMessage.innerHTML = `Game #${initialData.gameId} starting...`;
+    console.log('Game Start received:', initialData); if (!initialData?.yourPlayerId || !Array.isArray(initialData.players)) { console.error("Invalid game_start data"); return; }
+    isInGame = true; myPlayerId = initialData.yourPlayerId; currentPlayers = initialData.players; currentPhase = null; currentAskerId = null; hasVotedThisRound = false; eliminatedPlayerRoles = {};
+    console.log("My ID:", myPlayerId); if (statusMessage) statusMessage.innerHTML = `Game #${initialData.gameId} starting...`;
     if (gameArea) gameArea.style.display = 'block'; if (inputArea) inputArea.style.display = 'none'; if (answerArea) answerArea.innerHTML = ''; if (questionDisplay) questionDisplay.textContent = '';
     if (rulesBox) rulesBox.style.display = 'none';
-    renderPlayerList(currentPlayers); stopTimer();
+    updateGameUI(currentPlayers); // Use consolidated update function
+    stopTimer();
 });
 
 socket.on('new_round_phase', (data) => {
-    console.log('New Phase:', data?.phase, data); 
-    if (!data?.phase || typeof data.duration === 'undefined') return;
-    currentPhase = data.phase; 
-    hasVotedThisRound = false; 
-    startTimer(data.duration);
+    console.log('New Phase received:', data?.phase, data); if (!data?.phase || typeof data.duration === 'undefined') { console.error("Invalid phase data"); return; }
 
-    // Reset UI - Clear with textContent first to remove any existing animation spans
-    if (questionDisplay) questionDisplay.textContent = '';
-    if (statusMessage) statusMessage.textContent = '';
-    
-    // Reset UI
+    currentPhase = data.phase; hasVotedThisRound = false; startTimer(data.duration);
+    currentAskerId = data.askerId || null; // Store asker ID for the phase
+
+    // Reset common UI elements (ensure safe access)
+    if (questionDisplay) questionDisplay.innerHTML = ''; // Use innerHTML to clear potential span
     if (inputArea) inputArea.style.display = 'none';
     if (gameInput) { gameInput.disabled = false; gameInput.value = ''; }
     if (submitButton) { submitButton.disabled = false; }
-    if (playerList) {
-        playerList.querySelectorAll('.player-details').forEach(el => {
-            el.textContent = '';
-            el.style.display = 'none';
-            el.classList.remove('is-answer');
-        });
-        playerList.querySelectorAll('.vote-button-container').forEach(el => {
-            el.innerHTML = '';
-            el.style.display = 'none';
-        });
-        playerList.querySelectorAll('.player-card.current-asker').forEach(el => el.classList.remove('current-asker'));
-        playerList.querySelectorAll('.player-card.eliminated-card').forEach(el => el.classList.remove('eliminated-card'));
-        playerList.querySelectorAll('.player-name span[style*="color:red"]').forEach(el => el.remove());
-        playerList.querySelectorAll('.thinking-indicator').forEach(el => el.style.display = 'none');
-    }
+    if (rulesBox) rulesBox.style.display = 'none';
+    if (statusMessage && statusMessage.querySelector('.waiting-dots')) { statusMessage.textContent = statusMessage.textContent; } // Clear waiting dots if present
 
-    renderPlayerList(currentPlayers, {}); // Render base list first
 
+    // --- Update Status Message FIRST ---
+    let statusText = `Round ${data.round || '?'}: `;
     if (currentPhase === 'ASKING') {
-        if (typeof data.askerId === 'undefined') return;
-        currentAskerId = data.askerId;
-        const askerName = data.askerName || '?';
-        
-        // Add animation spans using innerHTML
-        if (statusMessage) {
-            statusMessage.innerHTML = `Round ${data.round}: ${askerName} asking<span class="waiting-dots"></span>`;
-        }
-        if (questionDisplay) {
-            questionDisplay.innerHTML = `Waiting for ${askerName}<span class="waiting-dots"></span>`;
-        }
-
-        const askerCard = playerList?.querySelector(`.player-card[data-player-id="${data.askerId}"]`);
-        if (askerCard) {
-            askerCard.classList.add('current-asker');
-            if (data.askerId !== myPlayerId) {
-                const indicator = askerCard.querySelector('.thinking-indicator');
-                if (indicator) indicator.style.display = 'inline-block';
-            }
-        }
-        if (data.askerId === myPlayerId) {
-            if (inputArea && inputLabel && submitButton && gameInput) {
-                inputArea.style.display = 'block';
-                inputLabel.textContent = `Ask (max ${QUESTION_MAX_LENGTH}):`;
-                submitButton.textContent = 'Submit Q';
-                gameInput.placeholder = 'Question...';
-                gameInput.maxLength = QUESTION_MAX_LENGTH;
-            }
-        }
-    } else if (currentPhase === 'ANSWERING') {
-        // Use textContent to ensure no animation spans
-        if (statusMessage) statusMessage.textContent = `Round ${data.round}: Answer!`;
-        if (questionDisplay && data.question) {
-            questionDisplay.textContent = `Q (${data.askerName || '?'}): ${data.question}`;
-        }
-        
-        if (typeof data.question === 'undefined' || typeof data.askerId === 'undefined') return;
-        currentAskerId = data.askerId;
-        const askerName = data.askerName || '?';
-        if (askerName !== myPlayerId) {
-            if (inputArea && inputLabel && submitButton && gameInput) {
-                inputArea.style.display = 'block';
-                inputLabel.textContent = `Your answer:`;
-                submitButton.textContent = 'Submit A';
-                gameInput.placeholder = 'Answer...';
-                gameInput.maxLength = ANSWER_MAX_LENGTH;
-            }
-        } else {
-            if (statusMessage) statusMessage.textContent = `Round ${data.round}: Waiting for answers...`;
-        }
-
-        currentPlayers.forEach(p => {
-            if (p.status === 'active' && p.id !== currentAskerId) {
-                const pCard = playerList?.querySelector(`.player-card[data-player-id="${p.id}"]`);
-                if (pCard) {
-                    const indicator = pCard.querySelector('.thinking-indicator');
-                    if (indicator) indicator.style.display = 'inline-block';
-                }
-            }
-        });
-    } else if (currentPhase === 'VOTING') {
-        // Use textContent to ensure clean display
-        if (statusMessage) statusMessage.textContent = `Round ${data.round}: Vote to eliminate!`;
-        if (questionDisplay && data.question) {
-            questionDisplay.textContent = `Q: ${data.question}`;
-        }
-        
-        setupVotingUI(data.answers || {});
-    } else if (currentPhase === 'REVEAL') {
-        // Use textContent for clean display
-        if (statusMessage) statusMessage.textContent = `Round ${data.round}: Reveal!`;
-        
-        if (data.results && Array.isArray(data.players)) {
-            currentPlayers = data.players;
-            renderPlayerList(currentPlayers, { results: data.results });
-        } else if (data.results) {
-            renderPlayerList(currentPlayers, { results: data.results });
-            console.warn("Reveal missing players update");
-        } else {
-            renderPlayerList(currentPlayers, {});
-            console.warn("Reveal missing results");
-        }
-
-        if (data.results) {
-            const elimNames = data.results.eliminatedNames || [];
-            if (statusMessage) statusMessage.textContent = elimNames.length > 0 ? `Eliminated: ${elimNames.join(', ')}!` : `Nobody eliminated!`;
-        }
+        statusText += `${data.askerName || '?'} is asking<span class="waiting-dots"></span>`;
     }
+    else if (currentPhase === 'ANSWERING') statusText += `Answer!`;
+    else if (currentPhase === 'VOTING') statusText += `Vote!`;
+    else if (currentPhase === 'REVEAL') statusText += `Reveal!`;
+    else statusText += currentPhase; // Fallback
+    if (statusMessage) statusMessage.innerHTML = statusText;
+
+    // --- Update Question Display ---
+     if (questionDisplay) {
+         if (currentPhase === 'ASKING') questionDisplay.innerHTML = `Waiting for ${data.askerName || '?'}<span class="waiting-dots"></span>`;
+         else if (currentPhase === 'ANSWERING' || currentPhase === 'VOTING') questionDisplay.textContent = `Q (${data.askerName || '?'}): ${data.question || '...'}`;
+         else if (currentPhase === 'REVEAL') {
+              // Display results summary in status, maybe keep question here?
+              if (data.results) {
+                  const elimDetails = data.results.eliminatedDetails || [];
+                  const elimNames = elimDetails.map(e => e.name);
+                  statusMessage.textContent = elimNames.length > 0 ? `Eliminated: ${elimNames.join(', ')}!` : `Nobody eliminated!`;
+              } else {
+                   statusMessage.textContent = `Round ${data.round}: Results...`;
+              }
+              // Keep question displayed during reveal? Optional.
+              // questionDisplay.textContent = `Q: ${data.question || '...'}`;
+         } else {
+              questionDisplay.textContent = ''; // Clear for other states
+         }
+     }
+
+    // --- Store Roles if Reveal Phase ---
+    if (currentPhase === 'REVEAL' && data.results?.eliminatedDetails) {
+        data.results.eliminatedDetails.forEach(detail => { if (detail?.id != null && detail.isHuman != null) { eliminatedPlayerRoles[detail.id] = detail.isHuman; } });
+        if (Array.isArray(data.players)) { currentPlayers = data.players; } // Update player status from payload
+    }
+
+    // --- Update Player List & Phase Specific UI ---
+    updateGameUI(currentPlayers, { answers: data.answers, results: data.results });
+
+    // --- Show/Hide Input Area ---
+    if (inputArea) {
+         if (currentPhase === 'ASKING' && data.askerId === myPlayerId) {
+             if(inputLabel) inputLabel.textContent=`Ask (max ${QUESTION_MAX_LENGTH}):`; if(submitButton) submitButton.textContent='Submit Q'; if(gameInput) gameInput.placeholder='Question...'; if(gameInput) gameInput.maxLength = QUESTION_MAX_LENGTH;
+             inputArea.style.display = 'block';
+         } else if (currentPhase === 'ANSWERING' && data.askerId !== myPlayerId) {
+              if(inputLabel) inputLabel.textContent=`Your answer:`; if(submitButton) submitButton.textContent='Submit A'; if(gameInput) gameInput.placeholder='Answer...'; if(gameInput) gameInput.maxLength = ANSWER_MAX_LENGTH;
+             inputArea.style.display = 'block';
+         } else {
+             inputArea.style.display = 'none'; // Hide otherwise
+         }
+    }
+
 });
+
 
 socket.on('player_update', (data) => {
-    if (!isInGame) return; console.log("P Update:", data); if (data?.players) { currentPlayers = data.players; renderPlayerList(currentPlayers, {}); }
+    if (!isInGame) return; console.log("P Update:", data);
+    if (data?.players) { currentPlayers = data.players; updateGameUI(currentPlayers); } // Use consolidated update
 });
 socket.on('game_over', (data) => {
-    if (!isInGame) return; console.log("Game Over:", data); isInGame = false; currentPhase = null; currentAskerId = null; hasVotedThisRound = false; stopTimer();
-    if (inputArea) inputArea.style.display = 'none'; if (statusMessage) statusMessage.textContent = `Game Over! ${data?.reason || ''}`; document.body.classList.add('game-over');
+    if (!isInGame) return; console.log("Game Over:", data); isInGame = false; currentPhase = null; currentAskerId = null; hasVotedThisRound = false; eliminatedPlayerRoles = {}; stopTimer();
+    if (inputArea) inputArea.style.display = 'none'; if (statusMessage) statusMessage.innerHTML = `Game Over! ${data?.reason || ''}`; document.body.classList.add('game-over'); if (rulesBox) rulesBox.style.display = 'none';
 });
 socket.on('action_error', (data) => {
     console.warn("Action Err:", data); if (data?.message) alert(`Err: ${data.message}`);
-    if (currentPhase === 'ASKING' && myPlayerId === currentAskerId) { if (gameInput) gameInput.disabled = false; if (submitButton) { submitButton.disabled = false; submitButton.textContent = 'Submit Q'; } }
-    else if (currentPhase === 'ANSWERING' && myPlayerId !== currentAskerId) { if (gameInput) gameInput.disabled = false; if (submitButton) { submitButton.disabled = false; submitButton.textContent = 'Submit A'; } }
+    // Re-enable input if appropriate phase/player
+    const myTurnToAsk = currentPhase === 'ASKING' && myPlayerId === currentAskerId;
+    const myTurnToAnswer = currentPhase === 'ANSWERING' && myPlayerId !== currentAskerId;
+    if (myTurnToAsk || myTurnToAnswer) {
+         if (gameInput) gameInput.disabled = false; if (submitButton) { submitButton.disabled = false; submitButton.textContent = myTurnToAsk ? 'Submit Q' : 'Submit A'; }
+    }
 });
 socket.on('vote_accepted', () => {
     console.log("Vote Acc."); hasVotedThisRound = true; if (statusMessage) statusMessage.textContent = "Vote cast! Waiting..."; document.querySelectorAll('.vote-button').forEach(b => { b.disabled = true; }); hideMyThinkingIndicator();
@@ -332,26 +345,34 @@ socket.on('vote_accepted', () => {
 
 // --- Event Listeners Setup ---
 function setupEventListeners() {
-    if (submitButton) { submitButton.addEventListener('click', handleSubmit); }
-    else { console.error("Submit btn missing"); }
-    if (gameInput) { gameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); handleSubmit(); } }); }
-    else { console.error("Input missing"); }
-    if (playerList) {
-        playerList.addEventListener('click', (event) => {
+    // Use safe accessors in case elements aren't ready immediately
+    const submitBtn = getElem('submit-button');
+    const gameIn = getElem('game-input');
+    const pList = getElem('player-list');
+
+    if (submitBtn) { submitBtn.addEventListener('click', handleSubmit); } else { console.error("Submit btn missing"); }
+    if (gameIn) { gameIn.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); handleSubmit(); } }); } else { console.error("Input missing"); }
+    if (pList) {
+        pList.addEventListener('click', (event) => {
             const voteButton = event.target.closest('.vote-button');
             if (voteButton && currentPhase === 'VOTING' && !hasVotedThisRound && !voteButton.disabled) {
                 const votedPlayerId = voteButton.dataset.votedPlayerId;
                 if (votedPlayerId) {
                     console.log(`Voting for ${votedPlayerId}`); socket.emit('submit_vote', { votedId: votedPlayerId });
                     document.querySelectorAll('.vote-button').forEach(btn => { btn.disabled = true; });
-                    hideMyThinkingIndicator(); // Hide indicator after voting
+                    hideMyThinkingIndicator();
                 }
             }
         });
-    } else { console.error("PlayerList missing for vote delegation!"); }
+    } else { console.error("PlayerList missing!"); }
 }
 
-// Initial setup
-setupEventListeners();
+// Initial setup & Connection Check
+// Defer setup until DOM is loaded
+if (document.readyState === 'loading') {
+     document.addEventListener('DOMContentLoaded', setupEventListeners);
+} else {
+     setupEventListeners(); // DOM already loaded
+}
 console.log("App.js loaded.");
-setTimeout(() => { if (!socket.connected) console.error("Socket Connect Fail!"); else console.log("Socket connected."); }, 2000);
+setTimeout(() => { if (!socket.connected) console.error("Socket Connect Fail!"); else console.log("Socket connected."); }, 3000); // Increased timeout slightly

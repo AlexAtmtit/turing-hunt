@@ -139,8 +139,23 @@ class GameSession {
 
             } else if (phaseName === 'REVEAL') {
                 const results = this.calculateResults();
-                phaseData.results = { voteCounts: results.voteCounts, eliminatedIds: results.eliminatedIds, eliminatedNames: results.eliminatedNames, votes: Object.fromEntries(this.votes) };
-                console.log(`Game ${this.id}: Reveal Results - Eliminated: ${results.eliminatedNames.join(', ') || 'Nobody'}`);
+                
+                // Add eliminated player roles to results
+                const eliminatedDetails = results.eliminatedIds.map(id => {
+                    const player = this.players.find(p => p.id === id);
+                    return {
+                        id: id,
+                        name: player?.name || '?',
+                        isHuman: player?.isHuman ?? null
+                    };
+                });
+
+                phaseData.results = {
+                    voteCounts: results.voteCounts,
+                    eliminatedDetails: eliminatedDetails,
+                    votes: Object.fromEntries(this.votes)
+                };
+                console.log(`Game ${this.id}: Reveal Results - Eliminated: ${eliminatedDetails.map(e=>e.name).join(', ') || 'Nobody'}`);
                 results.eliminatedIds.forEach(id => { const p = this.players.find(pl => pl.id === id); if (p) p.status = 'eliminated'; });
                 phaseData.players = this.getPublicPlayerData();
                 this.activeTimers.phaseTimeout = setTimeout(() => { if (!this.checkGameEnd()) { this.startNextRound(); } }, duration * 1000);

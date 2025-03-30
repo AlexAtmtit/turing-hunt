@@ -158,8 +158,21 @@ p {
     font-size: 0.9rem;
     font-weight: 500;
     margin-bottom: 0.5rem;
-    display: inline; /* Keep inline but manage spacing */
+    display: inline;
     word-break: break-word;
+}
+
+/* Role Label Styles */
+.player-role-label {
+    display: block;
+    font-size: 1em;
+    font-weight: 500;
+    margin-top: 0.1em;
+    margin-bottom: 0.3em;
+    color: var(--color-text-subtle);
+}
+.player-role-label span {
+    margin-right: 0.2em;
 }
 
 /* Thinking Indicator */
@@ -243,20 +256,23 @@ button.vote-button:disabled {
     box-shadow: 0 0 6px 0px rgb(245 158 11 / 0.5); /* Amber glow */
 }
 .player-card.eliminated {
-    opacity: 0.6;
+    opacity: 0.5;
     background-color: var(--color-disabled-bg);
-    border-style: dashed;
-    border-color: var(--color-disabled-text);
+    border-style: solid;
+    border-color: var(--color-border);
+    box-shadow: none;
 }
-.player-card.eliminated .player-name { text-decoration: line-through; }
+.player-card.eliminated .player-name {
+    color: var(--color-text-subtle);
+}
+.player-card.eliminated .avatar-container {
+    opacity: 0.6;
+}
 .player-card.eliminated .player-details,
 .player-card.eliminated .vote-button-container { display: none !important; }
 
 .player-card.eliminated-card {
-     border-color: var(--color-status-elim) !important;
-     background-color: #FEF2F2 !important; /* Very light red */
-     opacity: 0.7 !important;
-     transform: scale(0.98); /* Subtle shrink */
+    box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
 }
 .player-card.eliminated-card .player-name span { /* Target the ELIMINATED span */
     font-size: 0.8em; margin-left: 0.3em;
@@ -373,25 +389,18 @@ a[href="https://jam.pieter.com"] { z-index: 10000 !important; }
     color: var(--color-text);
 }
 
-/* --- UPDATED: Waiting Dots Animation Styles --- */
+/* --- Waiting Dots Animation Styles --- */
 .waiting-dots {
     display: inline-block;
-    position: relative;
-    line-height: 1;
-    margin-left: 1px;
-    width: 1.2em;
+    margin-left: 2px;
     vertical-align: baseline;
+    line-height: 1;
+    font-weight: bold;
 }
 
 .waiting-dots::after {
-    display: inline-block;
-    position: absolute;
-    left: 0;
-    top: 0;
-    animation: dots-alt 1.4s infinite step-start;
     content: '';
-    font-weight: bold;
-    color: inherit;
+    animation: dots-alt 1.4s infinite step-start;
 }
 
 @keyframes dots-alt {
