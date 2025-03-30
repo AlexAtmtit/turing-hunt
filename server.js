@@ -5,8 +5,9 @@ require('dotenv').config(); // Needs to be at the VERY TOP
 const express = require('express'); const http = require('http'); const path = require('path'); const { Server } = require("socket.io");
 const axios = require('axios'); // Axios might be needed here if not solely in gemini_ai.js
 
-// --- >>> Import AI module <<< ---
+// --- >>> Import AI module AND prompt arrays <<< ---
 const aiController = require('./gemini_ai');
+const { QUESTION_PROMPTS, ANSWER_PROMPTS } = aiController; // Import the arrays
 // --- >>> END Import <<< ---
 
 
@@ -67,7 +68,9 @@ class GameSession {
                 isHuman: false,
                 name: generateUniqueName(),
                 avatarEmoji: generateEmojiAvatar(),
-                status: 'active'
+                status: 'active',
+                // --- Add personality index ---
+                promptPersonalityIndex: Math.floor(Math.random() * 3) // 0, 1, or 2
             });
         }
         this.aiPlayers = aiPlayerData;
@@ -105,12 +108,24 @@ class GameSession {
         const fallback = fallbackValueMap[actionType];
         const playerName = player.name || player.id;
 
+        // --- Add prompt template selection ---
+        let promptTemplate = null;
+        if (actionType === 'question') {
+            promptTemplate = QUESTION_PROMPTS[player.promptPersonalityIndex] || QUESTION_PROMPTS[0];
+        } else if (actionType === 'answer') {
+            promptTemplate = ANSWER_PROMPTS[player.promptPersonalityIndex] || ANSWER_PROMPTS[0];
+        }
+
         for (let attempt = 1; attempt <= this.MAX_AI_ATTEMPTS; attempt++) {
             console.log(`Game ${this.id}: AI ${playerName} attempting ${actionType} (Attempt ${attempt}/${this.MAX_AI_ATTEMPTS}, Timeout: ${this.AI_ATTEMPT_TIMEOUT}ms)`);
 
             try {
                 const result = await Promise.race([
-                    actionFunc(player, context?.question, context?.answersData),
+                    actionFunc(
+                        player, 
+                        actionType === 'question' ? promptTemplate : context?.question,
+                        actionType === 'answer' ? promptTemplate : context?.answersData
+                    ),
                     new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), this.AI_ATTEMPT_TIMEOUT))
                 ]);
 
@@ -162,50 +177,81 @@ class GameSession {
 
     // --- >>> UPDATE: startPhase to use retry wrapper <<< ---
     async startPhase(phaseName) {
-        this.currentPhase = phaseName; const duration = ROUND_PHASE_DURATION[phaseName]; console.log(`Game ${this.id}: Phase: ${phaseName} (${duration}s)`);
-        if(this.activeTimers.phaseTimeout) { clearTimeout(this.activeTimers.phaseTimeout); this.activeTimers.phaseTimeout = null; }
-        let phaseData = { round:this.currentRound, phase:phaseName, duration:duration };
+        this.currentPhase = phaseName;
+        const duration = ROUND_PHASE_DURATION[phaseName];
+        console.log(`Game ${this.id}: Phase: ${phaseName} (${duration}s)`);
+        
+        if (this.activeTimers.phaseTimeout) {
+            clearTimeout(this.activeTimers.phaseTimeout);
+            this.activeTimers.phaseTimeout = null;
+        }
+
+        let phaseData = { round: this.currentRound, phase: phaseName, duration: duration };
 
         try {
             if (phaseName === 'ASKING') {
-                const active = this.players.filter(p=>p.status==='active'); if(active.length<2){this.endGame("Not enough players"); return;} this.currentAskerId = active[~~(Math.random()*active.length)].id; const asker=this.players.find(p=>p.id===this.currentAskerId); phaseData.askerId = this.currentAskerId; phaseData.askerName = asker?.name || '?'; console.log(`Game ${this.id}: ${phaseData.askerName} asking.`);
+                const active = this.players.filter(p => p.status === 'active');
+                if (active.length < 2) {
+                    this.endGame("Not enough players");
+                    return;
+                }
+
+                this.currentAskerId = active[~~(Math.random() * active.length)].id;
+                const asker = this.players.find(p => p.id === this.currentAskerId);
+                phaseData.askerId = this.currentAskerId;
+                phaseData.askerName = asker?.name || '?';
 
                 if (!asker.isHuman) {
+                    // For AI asker, get question first before emitting phase
                     const question = await this.attemptAIActionWithRetry(asker, 'question');
+                    // Emit phase data first
+                    io.to(this.roomName).emit('new_round_phase', phaseData);
+                    console.log(`Game ${this.id}: Emitted ASKING Phase (AI Asker)`);
+                    // Then process the question
                     setTimeout(() => this.handlePlayerQuestion(this.currentAskerId, question), 50);
+                    return; // Exit early as handlePlayerQuestion will trigger next phase
                 } else {
                     this.activeTimers.phaseTimeout = setTimeout(() => this.handleAskTimeout(), duration * 1000);
                 }
 
             } else if (phaseName === 'ANSWERING') {
-                if(!this.currentQuestion) this.currentQuestion="Default Q"; phaseData.question = this.currentQuestion; phaseData.askerId = this.currentAskerId; phaseData.askerName = this.players.find(p=>p.id===this.currentAskerId)?.name||'?';
+                if (!this.currentQuestion) this.currentQuestion = "Default Q";
+                phaseData.question = this.currentQuestion;
+                phaseData.askerId = this.currentAskerId;
+                phaseData.askerName = this.players.find(p => p.id === this.currentAskerId)?.name || '?';
 
-                this.players.forEach(p => {
-                    if (p.status === 'active' && !p.isHuman && p.id !== this.currentAskerId) {
-                        this.attemptAIActionWithRetry(p, 'answer', { question: this.currentQuestion })
-                            .then(answer => this.handlePlayerAnswer(p.id, answer))
-                            .catch(e => {
-                                console.error(`Game ${this.id}: Critical error in answer retry logic for ${p.name}:`, e);
-                                this.handlePlayerAnswer(p.id, "(AI Logic Error)");
-                            });
-                    }
-                });
-                this.activeTimers.phaseTimeout = setTimeout(()=>this.handleAnswerTimeout(), duration * 1000);
+                // Start AI answer processing after emission
+                const aiAnswerPromises = this.players
+                    .filter(p => p.status === 'active' && !p.isHuman && p.id !== this.currentAskerId)
+                    .map(p => this.attemptAIActionWithRetry(p, 'answer', { question: this.currentQuestion })
+                        .then(answer => this.handlePlayerAnswer(p.id, answer))
+                        .catch(e => {
+                            console.error(`Game ${this.id}: AI answer error for ${p.name}:`, e);
+                            this.handlePlayerAnswer(p.id, "(AI Error)");
+                        }));
+
+                this.activeTimers.phaseTimeout = setTimeout(() => this.handleAnswerTimeout(), duration * 1000);
 
             } else if (phaseName === 'VOTING') {
-                const answersPayload = {}; this.answers.forEach((ans, pid)=>{const p=this.players.find(pl=>pl.id===pid); answersPayload[pid]={name:p?.name||'?',answer:ans};}); phaseData.answers=answersPayload; phaseData.question=this.currentQuestion;
-
-                this.players.forEach(p => {
-                    if (p.status === 'active' && !p.isHuman) {
-                        this.attemptAIActionWithRetry(p, 'vote', { answersData: answersPayload })
-                            .then(votedId => this.handlePlayerVote(p.id, votedId))
-                            .catch(e => {
-                                console.error(`Game ${this.id}: Critical error in vote retry logic for ${p.name}:`, e);
-                                this.handlePlayerVote(p.id, null);
-                            });
-                    }
+                const answersPayload = {};
+                this.answers.forEach((ans, pid) => {
+                    const p = this.players.find(pl => pl.id === pid);
+                    answersPayload[pid] = { name: p?.name || '?', answer: ans };
                 });
-                this.activeTimers.phaseTimeout = setTimeout(()=>this.handleVoteTimeout(), duration * 1000);
+                phaseData.answers = answersPayload;
+                phaseData.question = this.currentQuestion;
+
+                // Start AI vote processing after emission
+                const aiVotePromises = this.players
+                    .filter(p => p.status === 'active' && !p.isHuman)
+                    .map(p => this.attemptAIActionWithRetry(p, 'vote', { answersData: answersPayload })
+                        .then(votedId => this.handlePlayerVote(p.id, votedId))
+                        .catch(e => {
+                            console.error(`Game ${this.id}: AI vote error for ${p.name}:`, e);
+                            this.handlePlayerVote(p.id, null);
+                        }));
+
+                this.activeTimers.phaseTimeout = setTimeout(() => this.handleVoteTimeout(), duration * 1000);
 
             } else if (phaseName === 'REVEAL') {
                 const results = this.calculateResults();
@@ -231,14 +277,13 @@ class GameSession {
                 this.activeTimers.phaseTimeout = setTimeout(() => { if (!this.checkGameEnd()) { this.startNextRound(); } }, duration * 1000);
             }
 
-            // Emit phase data AFTER potentially awaiting AI question
+            // Emit phase data for all cases except AI asking
             io.to(this.roomName).emit('new_round_phase', phaseData);
             console.log(`Game ${this.id}: Emitted Phase: ${phaseName}`);
 
         } catch (error) {
-             console.error(`Game ${this.id}: Error during startPhase ${phaseName}:`, error);
-             // Attempt to recover or end game
-             this.endGame(`Critical error during ${phaseName}`);
+            console.error(`Game ${this.id}: Error during startPhase ${phaseName}:`, error);
+            this.endGame(`Critical error during ${phaseName}`);
         }
     }
 
