@@ -48,7 +48,7 @@ class GameSession {
     AI_ATTEMPT_TIMEOUT = 8000; // 8 seconds
     // --- >>> END MOVE <<< ---
 
-    constructor(gameId, humanSockets) { /* ... */ this.id = gameId; this.roomName = `game-${gameId}`; this.players = []; this.humanSockets = humanSockets; this.aiPlayers = []; this.currentRound = 0; this.currentPhase = null; this.currentAskerId = null; this.currentQuestion = null; this.answers = new Map(); this.votes = new Map(); this.activeTimers = { phaseTimeout: null }; console.log(`Creating GameSession ${this.id}`); this.initializePlayers(); }
+    constructor(gameId, humanSockets) { /* ... */ this.id = gameId; this.roomName = `game-${gameId}`; this.players = []; this.humanSockets = humanSockets; this.aiPlayers = []; this.currentRound = 0; this.currentPhase = null; this.currentAskerId = null; this.currentQuestion = null; this.answers = new Map(); this.votes = new Map(); this.activeTimers = { phaseTimeout: null }; this.phaseAcknowledgments = new Set(); console.log(`Creating GameSession ${this.id}`); this.initializePlayers(); }
     initializePlayers() {
         usedNames.clear();
         const humanPlayerData = this.humanSockets.map(socket => ({
@@ -116,67 +116,98 @@ class GameSession {
             promptTemplate = ANSWER_PROMPTS[player.promptPersonalityIndex] || ANSWER_PROMPTS[0];
         }
 
-        for (let attempt = 1; attempt <= this.MAX_AI_ATTEMPTS; attempt++) {
-            console.log(`Game ${this.id}: AI ${playerName} attempting ${actionType} (Attempt ${attempt}/${this.MAX_AI_ATTEMPTS}, Timeout: ${this.AI_ATTEMPT_TIMEOUT}ms)`);
+        // Add better error recovery for AI actions
+        try {
+            for (let attempt = 1; attempt <= this.MAX_AI_ATTEMPTS; attempt++) {
+                console.log(`Game ${this.id}: AI ${playerName} attempting ${actionType} (Attempt ${attempt}/${this.MAX_AI_ATTEMPTS}, Timeout: ${this.AI_ATTEMPT_TIMEOUT}ms)`);
 
-            try {
-                const result = await Promise.race([
-                    actionFunc(
-                        player, 
-                        actionType === 'question' ? promptTemplate : context?.question,
-                        actionType === 'answer' ? promptTemplate : context?.answersData
-                    ),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), this.AI_ATTEMPT_TIMEOUT))
-                ]);
+                try {
+                    const result = await Promise.race([
+                        actionFunc(
+                            player, 
+                            actionType === 'question' ? promptTemplate : context?.question,
+                            actionType === 'answer' ? promptTemplate : context?.answersData
+                        ),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), this.AI_ATTEMPT_TIMEOUT))
+                    ]);
 
-                // Validate Result
-                let isValid = false;
-                if (actionType === 'vote') {
-                    // Allow explicit null votes (abstaining) or valid string IDs
-                    isValid = (result === null) || 
-                             (typeof result === 'string' && 
-                              result.length > 0 && 
-                              !result.toLowerCase().includes("error") && 
-                              !result.toLowerCase().includes("blocked") && 
-                              !result.toLowerCase().includes("timeout"));
-                } else {
-                    // Question or Answer validation
-                    isValid = typeof result === 'string' && 
-                             result.length >= 2 && 
-                             !result.toLowerCase().includes("error") && 
-                             !result.toLowerCase().includes("blocked") && 
-                             !result.toLowerCase().includes("timeout");
-                }
+                    // Validate Result
+                    let isValid = false;
+                    if (actionType === 'vote') {
+                        // Allow explicit null votes (abstaining) or valid string IDs
+                        isValid = (result === null) || 
+                                (typeof result === 'string' && 
+                                result.length > 0 && 
+                                !result.toLowerCase().includes("error") && 
+                                !result.toLowerCase().includes("blocked") && 
+                                !result.toLowerCase().includes("timeout"));
+                    } else {
+                        // Question or Answer validation
+                        isValid = typeof result === 'string' && 
+                                result.length >= 2 && 
+                                !result.toLowerCase().includes("error") && 
+                                !result.toLowerCase().includes("blocked") && 
+                                !result.toLowerCase().includes("timeout");
+                    }
 
-                if (isValid) {
-                    console.log(`Game ${this.id}: AI ${playerName} ${actionType} success (Attempt ${attempt}): ${result ? result.substring(0, 50) : result}...`);
-                    return result;
-                }
+                    if (isValid) {
+                        console.log(`Game ${this.id}: AI ${playerName} ${actionType} success (Attempt ${attempt}): ${result ? result.substring(0, 50) : result}...`);
+                        return result;
+                    }
 
-                console.warn(`Game ${this.id}: AI ${playerName} ${actionType} returned invalid result (Attempt ${attempt}): ${result}.`);
-                if (attempt === this.MAX_AI_ATTEMPTS) {
-                    console.error(`Game ${this.id}: AI ${playerName} ${actionType} failed after ${this.MAX_AI_ATTEMPTS} attempts. Using fallback.`);
-                    return fallback;
-                }
+                    console.warn(`Game ${this.id}: AI ${playerName} ${actionType} returned invalid result (Attempt ${attempt}): ${result}.`);
+                    if (attempt === this.MAX_AI_ATTEMPTS) {
+                        console.error(`Game ${this.id}: AI ${playerName} ${actionType} failed after ${this.MAX_AI_ATTEMPTS} attempts. Using fallback.`);
+                        return fallback;
+                    }
 
-            } catch (error) {
-                const errorMsg = error.message === 'Timeout' ? 'timed out' : 'encountered an error';
-                console.warn(`Game ${this.id}: AI ${playerName} ${actionType} ${errorMsg} (Attempt ${attempt}).`);
-                
-                if (attempt === this.MAX_AI_ATTEMPTS) {
-                    console.error(`Game ${this.id}: AI ${playerName} ${actionType} failed after ${this.MAX_AI_ATTEMPTS} attempts. Using fallback.`);
-                    return fallback;
+                } catch (error) {
+                    const errorMsg = error.message === 'Timeout' ? 'timed out' : 'encountered an error';
+                    console.warn(`Game ${this.id}: AI ${playerName} ${actionType} ${errorMsg} (Attempt ${attempt}).`);
+                    
+                    if (attempt === this.MAX_AI_ATTEMPTS) {
+                        console.error(`Game ${this.id}: AI ${playerName} ${actionType} failed after ${this.MAX_AI_ATTEMPTS} attempts. Using fallback.`);
+                        return fallback;
+                    }
                 }
             }
-        }
 
-        // Failsafe
-        console.error(`Game ${this.id}: AI ${playerName} ${actionType} loop finished unexpectedly. Using fallback.`);
-        return fallback;
+            // Failsafe within the try block
+            console.error(`Game ${this.id}: AI ${playerName} ${actionType} loop finished unexpectedly. Using fallback.`);
+            return fallback;
+            
+        } catch (unexpectedError) {
+            // Catch any unexpected errors that might occur outside the retry loop
+            console.error(`Game ${this.id}: Unexpected error in AI ${actionType} for ${playerName}:`, unexpectedError);
+            return fallback; // Ensure we return a fallback value
+        }
+    }
+
+    // New method to handle client acknowledgments
+    handlePhaseAcknowledgment(socketId) {
+        if (!socketId || this.currentPhase === null) return;
+        
+        this.phaseAcknowledgments.add(socketId);
+        console.log(`Game ${this.id}: Client ${socketId} acknowledged phase ${this.currentPhase}`);
+        
+        // Optional: Check if all human players acknowledged
+        const humanPlayerIds = this.players
+            .filter(p => p.isHuman && p.status === 'active')
+            .map(p => p.id);
+            
+        const allAcknowledged = humanPlayerIds.every(id => this.phaseAcknowledgments.has(id));
+        
+        if (allAcknowledged) {
+            console.log(`Game ${this.id}: All human players acknowledged phase ${this.currentPhase}`);
+            // Could implement additional synchronization logic here if needed
+        }
     }
 
     // --- >>> UPDATE: startPhase to use retry wrapper <<< ---
     async startPhase(phaseName) {
+        // Clear previous acknowledgments when starting a new phase
+        this.phaseAcknowledgments.clear();
+        
         this.currentPhase = phaseName;
         const duration = ROUND_PHASE_DURATION[phaseName];
         console.log(`Game ${this.id}: Phase: ${phaseName} (${duration}s)`);
@@ -207,8 +238,8 @@ class GameSession {
                     // Emit phase data first
                     io.to(this.roomName).emit('new_round_phase', phaseData);
                     console.log(`Game ${this.id}: Emitted ASKING Phase (AI Asker)`);
-                    // Then process the question
-                    setTimeout(() => this.handlePlayerQuestion(this.currentAskerId, question), 50);
+                    // Then process the question - INCREASED TIMEOUT FROM 50MS TO 500MS
+                    setTimeout(() => this.handlePlayerQuestion(this.currentAskerId, question), 500);
                     return; // Exit early as handlePlayerQuestion will trigger next phase
                 } else {
                     this.activeTimers.phaseTimeout = setTimeout(() => this.handleAskTimeout(), duration * 1000);
@@ -358,6 +389,25 @@ io.on('connection', (socket) => {
     socket.on('submit_question', (data) => { if(socket.gameId){ const g=activeGames.get(socket.gameId); if(g){ const t=typeof data==='string'?data:data?.question; if(typeof t==='string')g.handlePlayerQuestion(socket.id,t);}}});
     socket.on('submit_answer', (data) => { if(socket.gameId){ const g=activeGames.get(socket.gameId); if(g){ const t=typeof data==='string'?data:null; if(t!==null) g.handlePlayerAnswer(socket.id,t);}}});
     socket.on('submit_vote', (data) => { if(socket.gameId){ const g=activeGames.get(socket.gameId); if(g){ const vId=data?.votedId; if(typeof vId==='string'&&vId.length>0)g.handlePlayerVote(socket.id,vId);}}});
+    
+    // Add new listener for phase acknowledgments
+    socket.on('phase_ack', () => {
+        if (socket.gameId) {
+            const game = activeGames.get(socket.gameId);
+            if (game) {
+                game.handlePhaseAcknowledgment(socket.id);
+            }
+        }
+    });
+
+    // Add heartbeat handler
+    socket.on('heartbeat', () => {
+        // Simple echo back to the client
+        socket.emit('heartbeat_response');
+        // Optional: Could log heartbeat reception if needed for debugging
+        // console.log(`Received heartbeat from ${socket.id}`);
+    });
+
     // Disconnect
     socket.on('disconnect', () => { console.log(`User disconnected: ${socket.id}`); if(waitingPlayers.has(socket)){waitingPlayers.delete(socket);broadcastWaitingCount();}else if(socket.gameId){const g=activeGames.get(socket.gameId);if(g){g.handleDisconnect(socket.id);}}});
 });

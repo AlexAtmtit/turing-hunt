@@ -416,3 +416,159 @@ a[href="https://jam.pieter.com"] { z-index: 10000 !important; }
     75%  { content: '...'; }
     100% { content: '...'; }
 }
+
+/* --- Add new styles for debugging and phase indicators --- */
+
+/* Connection Status Indicator */
+.connection-status {
+    display: flex;
+    align-items: center;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: var(--color-text-subtle);
+}
+
+.connection-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--color-success);
+    margin-right: 6px;
+}
+
+.connection-status.disconnected .connection-dot {
+    background-color: var(--color-status-vote);
+}
+
+.connection-status.disconnected .connection-text {
+    color: var(--color-status-vote);
+}
+
+/* Phase Indicator */
+.phase-indicator {
+    display: flex;
+    justify-content: space-between;
+    margin: 1rem 0;
+    padding: 0.5rem 0;
+    border-top: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.phase-step {
+    flex: 1;
+    text-align: center;
+    padding: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--color-text-subtle);
+    font-weight: 500;
+    border-radius: var(--border-radius);
+    transition: all 0.3s ease;
+}
+
+.phase-step.active {
+    background-color: var(--color-accent);
+    color: var(--color-accent-text);
+}
+
+.phase-ask.active { background-color: var(--color-status-ask); }
+.phase-answer.active { background-color: var(--color-accent); }
+.phase-vote.active { background-color: var(--color-status-vote); }
+.phase-reveal.active { background-color: var(--color-text-subtle); }
+
+/* Emergency Refresh Button */
+.force-refresh {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    background-color: var(--color-status-vote);
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-weight: 500;
+    z-index: 1000;
+    display: none;
+}
+
+/* Debug Panel */
+.debug-panel {
+    background-color: #1E1E1E;
+    color: #E5E7EB;
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin-top: 1rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    line-height: 1.4;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.debug-panel h3 {
+    color: #E5E7EB;
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+}
+
+.debug-panel #debug-content {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.debug-panel button {
+    background-color: #2D3748;
+    color: #E5E7EB;
+    border: none;
+    padding: 4px 8px;
+    margin-top: 8px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* Transition Animation for Phase Changes */
+.phase-transition {
+    animation: phaseTransition 0.5s ease;
+}
+
+@keyframes phaseTransition {
+    0% { opacity: 0.6; transform: scale(0.98); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+/* Fix for waiting dots animation */
+.waiting-dots::after {
+    content: '';
+    animation: dots-alt 1.4s infinite steps(4, end);
+}
+
+/* Fix to ensure player cards have consistent height */
+.player-card {
+    min-height: 150px; /* Increased minimum height */
+    display: flex;
+    flex-direction: column;
+}
+
+/* Add transition to make UI changes smoother */
+.player-card,
+.player-card .player-details,
+#question-display,
+#status-message {
+    transition: all 0.3s ease;
+}
+
+/* Ensure visibility of eliminated player indicators */
+.player-card.eliminated .player-role-label {
+    display: block !important;
+    color: var(--color-status-elim);
+    font-weight: 600;
+}
+
+/* "Current" indicators for better phase awareness */
+body.phase-asking .phase-ask,
+body.phase-answering .phase-answer,
+body.phase-voting .phase-vote,
+body.phase-reveal .phase-reveal {
+    font-weight: 700;
+    background-color: rgba(0, 0, 0, 0.05);
+}
