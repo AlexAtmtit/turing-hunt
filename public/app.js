@@ -157,20 +157,26 @@ function updateGameUI(players, displayData = {}) {
         }
         // Content for VOTING phase
         else if (currentPhase === 'VOTING') {
-             detailsElement.classList.add('is-answer'); // Add answer style class
+             detailsElement.classList.add('is-answer');
              const answerInfo = displayData.answers?.[player.id];
              if (answerInfo) { detailsElement.textContent = `"${answerInfo.answer}"`; }
              else if (player.id === currentAskerId) { detailsElement.textContent = `(Asker)`; }
              else { detailsElement.textContent = `(No Ans)`; }
              detailsElement.style.display = 'block';
 
-             if (player.status === 'active') { // Add vote button if active
+             if (player.status === 'active') {
                  voteButtonContainer.innerHTML = ''; voteButtonContainer.style.display = 'block';
-                 const voteButton = document.createElement('button'); voteButton.classList.add('vote-button'); voteButton.dataset.votedPlayerId = player.id; voteButton.textContent = `That's AI!`;
-                 if (hasVotedThisRound) { voteButton.disabled = true; }
+                 const voteButton = document.createElement('button');
+                 voteButton.classList.add('vote-button');
+                 voteButton.dataset.votedPlayerId = player.id;
+                 voteButton.textContent = `That's AI!`;
+                 // Disable if it's the player's own card or if they've already voted
+                 voteButton.disabled = hasVotedThisRound || player.id === myPlayerId;
                  voteButtonContainer.appendChild(voteButton);
-                 // Show thinking indicator if haven't voted
-                  if (thinkingSpan && !hasVotedThisRound) { thinkingSpan.style.display = 'inline-block'; }
+                 // Show thinking indicator if haven't voted and not own card
+                 if (thinkingSpan && !hasVotedThisRound && player.id !== myPlayerId) {
+                     thinkingSpan.style.display = 'inline-block';
+                 }
              }
         }
         // Content for ASKING/ANSWERING phase (Thinking indicators)

@@ -238,7 +238,48 @@ class GameSession {
     handleAskTimeout() { /* ... */ if(this.currentPhase==='ASKING'){console.log(`Asker ${this.currentAskerId} timed out.`);this.currentQuestion="Fav color?";this.startPhase('ANSWERING');}}
     handlePlayerAnswer(playerId, answerText) { /* ... */ const p=this.players.find(pl=>pl.id===playerId);if(this.currentPhase!=='ANSWERING'||!p||p.status!=='active'||playerId===this.currentAskerId||this.answers.has(playerId))return;if(typeof answerText!=='string'||answerText.length===0||answerText.length>ANSWER_MAX_LENGTH){if(p.socket)p.socket.emit('action_error',{message:`Ans len`});return;} this.answers.set(playerId,answerText.trim());console.log(`Ans Acc from ${playerId}. Total:${this.answers.size}`);this.checkIfPhaseComplete();}
     handleAnswerTimeout() { /* ... */ if(this.currentPhase==='ANSWERING'){console.log(`Ans timeout.`);const act=this.players.filter(p=>p.status==='active');act.forEach(p=>{if(p.id!==this.currentAskerId && !this.answers.has(p.id)){console.log(`${p.name} no ans.`);this.answers.set(p.id,"(No answer)");}});this.startPhase('VOTING');}}
-    handlePlayerVote(voterId, votedId) { /* ... */ const v=this.players.find(p=>p.id===voterId);if(this.currentPhase!=='VOTING'||!v||v.status!=='active'||v.hasVoted)return;if(votedId===null){console.log(`${v.name} abstain.`);this.votes.set(voterId,null);v.hasVoted=true;}else{const t=this.players.find(p=>p.id===votedId);if(!t||t.status!=='active'){console.warn(`Invalid vote target ${votedId}`);this.votes.set(voterId,null);v.hasVoted=true;if(v.socket)v.socket.emit('action_error',{message:`Cannot vote ${t?.name||'player'}`});}else{this.votes.set(voterId,votedId);v.hasVoted=true;console.log(`Vote Acc: ${v.name}->${t.name}`);}}if(v.socket)v.socket.emit('vote_accepted');this.checkIfPhaseComplete();}
+    handlePlayerVote(voterId, votedId) {
+        console.log(`Game ${this.id}: Received vote attempt from ${voterId} for ${votedId}`);
+        const voter = this.players.find(p => p.id === voterId);
+
+        // --- Validation ---
+        // 1. Check if Voting Phase
+        if (this.currentPhase !== 'VOTING') { console.warn(`Vote received outside VOTING phase from ${voterId}. Ignored.`); return; }
+        // 2. Check if Voter is Active
+        if (!voter || voter.status !== 'active') { console.warn(`Vote received from inactive/unknown voter ${voterId}. Ignored.`); return; }
+        // 3. Check if Voter Already Voted
+        if (voter.hasVoted) { console.warn(`Voter ${voterId} already voted. Ignored.`); return; }
+
+        // Handle Abstain (null votedId)
+        if (votedId === null) {
+            console.log(`Game ${this.id}: Voter ${voter.name} abstained.`);
+            this.votes.set(voterId, null);
+            voter.hasVoted = true;
+        } else {
+            // 4. Check if Target Player Exists and is Active
+            const votedPlayer = this.players.find(p => p.id === votedId);
+            if (!votedPlayer || votedPlayer.status !== 'active') {
+                console.warn(`Vote target ${votedId} is inactive or invalid. Voter ${voter.name} abstains.`);
+                this.votes.set(voterId, null);
+                voter.hasVoted = true;
+                if (voter.socket) { voter.socket.emit('action_error', { message: `Cannot vote for ${votedPlayer?.name || 'that player'}. Vote counts as abstain.` }); }
+            // 5. Check for Self-Vote
+            } else if (voterId === votedId) {
+                console.warn(`Player ${voter.name} attempted to vote for self. Vote ignored (counts as abstain).`);
+                this.votes.set(voterId, null);
+                voter.hasVoted = true;
+                if (voter.socket) { voter.socket.emit('action_error', { message: `You cannot vote for yourself. Vote counts as abstain.` }); }
+            } else {
+                // Valid vote
+                this.votes.set(voterId, votedId);
+                voter.hasVoted = true;
+                console.log(`Vote Acc: ${voter.name} -> ${votedPlayer.name}`);
+            }
+        }
+
+        if (voter.socket) { voter.socket.emit('vote_accepted'); }
+        this.checkIfPhaseComplete();
+    }
     handleVoteTimeout() { /* ... */ if(this.currentPhase==='VOTING'){console.log(`Vote timeout.`);this.players.forEach(p=>{if(p.status==='active'&&!p.hasVoted){console.log(`${p.name} no vote.`);this.votes.set(p.id,null);p.hasVoted=true;}});this.startPhase('REVEAL');}}
     handleDisconnect(playerId) { /* ... */ const p=this.players.find(pl=>pl.id===playerId);if(p&&p.status==='active'){p.status='disconnected';console.log(`${p.name} disconnected.`);if(this.currentPhase==='ASKING'&&this.currentAskerId===playerId){if(this.activeTimers.phaseTimeout)clearTimeout(this.activeTimers.phaseTimeout);this.handleAskTimeout();}else if(this.currentPhase==='ANSWERING'&&playerId!==this.currentAskerId){this.answers.set(playerId,"(Disconnected)");this.checkIfPhaseComplete();}else if(this.currentPhase==='VOTING'){if(!p.hasVoted){this.votes.set(playerId,null);p.hasVoted=true;this.checkIfPhaseComplete();}}io.to(this.roomName).emit('player_update',{players:this.getPublicPlayerData()});this.checkGameEnd();}}
     checkIfPhaseComplete() { /* ... */ const act=this.players.filter(p=>p.status==='active');if(this.currentPhase==='ANSWERING'){const exp=act.filter(p=>p.id!==this.currentAskerId).length; const cur=Array.from(this.answers.keys()).filter(id=>act.some(p=>p.id===id)).length;if(cur>=exp&&exp>0){console.log("Ans phase complete early.");if(this.activeTimers.phaseTimeout)clearTimeout(this.activeTimers.phaseTimeout);this.startPhase('VOTING');}}else if(this.currentPhase==='VOTING'){const exp=act.length;const cur=act.filter(p=>p.hasVoted).length;if(cur>=exp&&exp>0){console.log("Vote phase complete early.");if(this.activeTimers.phaseTimeout)clearTimeout(this.activeTimers.phaseTimeout);this.startPhase('REVEAL');}}}
