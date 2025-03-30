@@ -349,7 +349,8 @@ button.vote-button:disabled {
 a[href="https://jam.pieter.com"] { z-index: 10000 !important; }
 
 /* --- Rules Box Styles --- */
-#rules-box {
+#rules-box,
+#rules-box-game {
     background-color: #F9FAFB;
     border: 1px solid var(--color-border);
     border-radius: var(--border-radius);
@@ -358,7 +359,8 @@ a[href="https://jam.pieter.com"] { z-index: 10000 !important; }
     margin-bottom: 1.5rem;
 }
 
-#rules-box h2 {
+#rules-box h2,
+#rules-box-game h2 {
     font-size: 1rem;
     font-weight: 600;
     color: var(--color-text);
@@ -367,24 +369,28 @@ a[href="https://jam.pieter.com"] { z-index: 10000 !important; }
     border-bottom: 1px solid var(--color-border);
 }
 
-#rules-box ul {
+#rules-box ul,
+#rules-box-game ul {
     list-style: none;
     padding: 0;
     margin: 0;
 }
 
-#rules-box li {
+#rules-box li,
+#rules-box-game li {
     font-size: 0.9rem;
     color: var(--color-text-subtle);
     margin-bottom: 0.5rem;
     line-height: 1.5;
 }
 
-#rules-box li:last-child {
+#rules-box li:last-child,
+#rules-box-game li:last-child {
     margin-bottom: 0;
 }
 
-#rules-box strong {
+#rules-box strong,
+#rules-box-game strong {
     font-weight: 600;
     color: var(--color-text);
 }
