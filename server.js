@@ -16,7 +16,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, 'public')));
 /* ... keep generateUniqueName, generateAvatarData, shuffleArray ... */
 const ADJECTIVES = ["Quick", "Lazy", "Sleepy", "Noisy", "Hungry", "Clever", "Brave", "Shiny", "Happy", "Grumpy"]; const NOUNS = ["Fox", "Dog", "Cat", "Mouse", "Bear", "Lion", "Tiger", "Robot", "Alien", "Ghost"]; const usedNames = new Set(); function generateUniqueName() { let n,a=0; do { const j=ADJECTIVES[~~(Math.random()*ADJECTIVES.length)],o=NOUNS[~~(Math.random()*NOUNS.length)]; n=`${j}${o}${ ~~(Math.random()*100)}`; a++; } while(usedNames.has(n) && a<50); usedNames.add(n); return n;} const SHAPES=['circle','square','triangle']; const COLORS=['#FF6B6B', '#4ECDC4', '#45B7D1', '#FED766', '#8AEEF4', '#F8AFA6', '#F1EFA5', '#ABE9B3']; function generateAvatarData(){return{shape:SHAPES[~~(Math.random()*SHAPES.length)],color1:COLORS[~~(Math.random()*COLORS.length)],color2:COLORS[~~(Math.random()*COLORS.length)],eyeStyle:Math.random()>0.5?'dots':'lines'};} function shuffleArray(a){for(let i=a.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}}
-const MAX_PLAYERS_FOR_GAME = 3; const AI_PLAYER_COUNT = 3; const TOTAL_PLAYERS = MAX_PLAYERS_FOR_GAME + AI_PLAYER_COUNT; const ROUND_PHASE_DURATION = { ASKING: 30, ANSWERING: 30, VOTING: 30, REVEAL: 15 }; const QUESTION_MAX_LENGTH = 40; const ANSWER_MAX_LENGTH = 100;
+const MAX_PLAYERS_FOR_GAME = 3; const AI_PLAYER_COUNT = 3; const TOTAL_PLAYERS = MAX_PLAYERS_FOR_GAME + AI_PLAYER_COUNT; const ROUND_PHASE_DURATION = { ASKING: 30, ANSWERING: 30, VOTING: 30, REVEAL: 5 }; const QUESTION_MAX_LENGTH = 40; const ANSWER_MAX_LENGTH = 100;
 
 // Server State (keep as before)
 const waitingPlayers = new Set(); const activeGames = new Map(); let nextGameId = 1;
@@ -42,7 +42,11 @@ const RETRY_TIMEOUT = 10000; // 10 seconds for the retry
 
 // --- Game Session Class ---
 class GameSession {
-    // Constructor, initializePlayers, getPublicPlayerData (keep as before)
+    // --- >>> MOVED Retry Constants Inside Class <<< ---
+    MAX_AI_ATTEMPTS = 3;
+    AI_ATTEMPT_TIMEOUT = 8000; // 8 seconds
+    // --- >>> END MOVE <<< ---
+
     constructor(gameId, humanSockets) { /* ... */ this.id = gameId; this.roomName = `game-${gameId}`; this.players = []; this.humanSockets = humanSockets; this.aiPlayers = []; this.currentRound = 0; this.currentPhase = null; this.currentAskerId = null; this.currentQuestion = null; this.answers = new Map(); this.votes = new Map(); this.activeTimers = { phaseTimeout: null }; console.log(`Creating GameSession ${this.id}`); this.initializePlayers(); }
     initializePlayers() {
         usedNames.clear();
@@ -86,65 +90,74 @@ class GameSession {
 
     // --- >>> NEW: Add AI Action Retry Helper <<< ---
     async attemptAIActionWithRetry(player, actionType, context) {
-        const actionFuncMap = {
-            question: aiController.getAIQuestion,
-            answer: aiController.getAIAnswer,
-            vote: aiController.getAIVote
+        const actionFuncMap = { 
+            question: aiController.getAIQuestion, 
+            answer: aiController.getAIAnswer, 
+            vote: aiController.getAIVote 
         };
-        const fallbackValueMap = {
-            question: "What is your favorite season?",
-            answer: "(AI Answer Timed Out / Error)",
-            vote: null
+        const fallbackValueMap = { 
+            question: "What are you thinking about?", 
+            answer: "(AI Error/Timeout)", 
+            vote: null  // Abstain on vote error
         };
 
         const actionFunc = actionFuncMap[actionType];
         const fallback = fallbackValueMap[actionType];
         const playerName = player.name || player.id;
 
-        console.log(`Game ${this.id}: AI ${playerName} attempting ${actionType} (Attempt 1)`);
+        for (let attempt = 1; attempt <= this.MAX_AI_ATTEMPTS; attempt++) {
+            console.log(`Game ${this.id}: AI ${playerName} attempting ${actionType} (Attempt ${attempt}/${this.MAX_AI_ATTEMPTS}, Timeout: ${this.AI_ATTEMPT_TIMEOUT}ms)`);
 
-        try {
-            const result = await Promise.race([
-                actionFunc(player, context?.question, context?.answersData),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), FIRST_ATTEMPT_TIMEOUT))
-            ]);
-
-            const resultIsError = typeof result !== 'string' || result.length < 2 || 
-                                result.toLowerCase().includes("error") || 
-                                result.toLowerCase().includes("blocked") || 
-                                result.toLowerCase().includes("timeout");
-            const resultIsVoteError = actionType === 'vote' && (result === null || resultIsError);
-
-            if (!resultIsError && !resultIsVoteError) {
-                console.log(`Game ${this.id}: AI ${playerName} ${actionType} success (Attempt 1)`);
-                return result;
-            }
-            throw new Error('Invalid result');
-        } catch (error) {
-            console.warn(`Game ${this.id}: AI ${playerName} ${actionType} failed (Attempt 1). Retrying...`);
-            
             try {
-                const retryResult = await Promise.race([
+                const result = await Promise.race([
                     actionFunc(player, context?.question, context?.answersData),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), RETRY_TIMEOUT))
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), this.AI_ATTEMPT_TIMEOUT))
                 ]);
 
-                const retryIsError = typeof retryResult !== 'string' || retryResult.length < 2 ||
-                                   retryResult.toLowerCase().includes("error") ||
-                                   retryResult.toLowerCase().includes("blocked") ||
-                                   retryResult.toLowerCase().includes("timeout");
-                const retryVoteIsError = actionType === 'vote' && (retryResult === null || retryIsError);
-
-                if (!retryIsError && !retryVoteIsError) {
-                    console.log(`Game ${this.id}: AI ${playerName} ${actionType} success (Attempt 2)`);
-                    return retryResult;
+                // Validate Result
+                let isValid = false;
+                if (actionType === 'vote') {
+                    // Allow explicit null votes (abstaining) or valid string IDs
+                    isValid = (result === null) || 
+                             (typeof result === 'string' && 
+                              result.length > 0 && 
+                              !result.toLowerCase().includes("error") && 
+                              !result.toLowerCase().includes("blocked") && 
+                              !result.toLowerCase().includes("timeout"));
+                } else {
+                    // Question or Answer validation
+                    isValid = typeof result === 'string' && 
+                             result.length >= 2 && 
+                             !result.toLowerCase().includes("error") && 
+                             !result.toLowerCase().includes("blocked") && 
+                             !result.toLowerCase().includes("timeout");
                 }
-                throw new Error('Invalid retry result');
-            } catch (retryError) {
-                console.error(`Game ${this.id}: AI ${playerName} ${actionType} failed (Attempt 2). Using fallback.`);
-                return fallback;
+
+                if (isValid) {
+                    console.log(`Game ${this.id}: AI ${playerName} ${actionType} success (Attempt ${attempt}): ${result ? result.substring(0, 50) : result}...`);
+                    return result;
+                }
+
+                console.warn(`Game ${this.id}: AI ${playerName} ${actionType} returned invalid result (Attempt ${attempt}): ${result}.`);
+                if (attempt === this.MAX_AI_ATTEMPTS) {
+                    console.error(`Game ${this.id}: AI ${playerName} ${actionType} failed after ${this.MAX_AI_ATTEMPTS} attempts. Using fallback.`);
+                    return fallback;
+                }
+
+            } catch (error) {
+                const errorMsg = error.message === 'Timeout' ? 'timed out' : 'encountered an error';
+                console.warn(`Game ${this.id}: AI ${playerName} ${actionType} ${errorMsg} (Attempt ${attempt}).`);
+                
+                if (attempt === this.MAX_AI_ATTEMPTS) {
+                    console.error(`Game ${this.id}: AI ${playerName} ${actionType} failed after ${this.MAX_AI_ATTEMPTS} attempts. Using fallback.`);
+                    return fallback;
+                }
             }
         }
+
+        // Failsafe
+        console.error(`Game ${this.id}: AI ${playerName} ${actionType} loop finished unexpectedly. Using fallback.`);
+        return fallback;
     }
 
     // --- >>> UPDATE: startPhase to use retry wrapper <<< ---
