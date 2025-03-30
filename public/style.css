@@ -465,15 +465,33 @@ a[href="https://jam.pieter.com"] { z-index: 10000 !important; }
     transition: all 0.3s ease;
 }
 
+/* Update phase indicator active text color */
+
+/* Change the text color to black for all active phases */
 .phase-step.active {
     background-color: var(--color-accent);
-    color: var(--color-accent-text);
+    color: black; /* Changed from var(--color-accent-text) to black */
+    font-weight: 600; /* Slightly bolder for better visibility */
+    text-shadow: 0px 0px 1px rgba(255, 255, 255, 0.5); /* Optional: Add a subtle text shadow */
 }
 
-.phase-ask.active { background-color: var(--color-status-ask); }
-.phase-answer.active { background-color: var(--color-accent); }
-.phase-vote.active { background-color: var(--color-status-vote); }
-.phase-reveal.active { background-color: var(--color-text-subtle); }
+/* Make sure each phase background is still distinct */
+.phase-ask.active {
+    background-color: var(--color-status-ask);
+    color: black;
+}
+.phase-answer.active {
+    background-color: var(--color-accent);
+    color: black;
+}
+.phase-vote.active {
+    background-color: var(--color-status-vote);
+    color: white; /* Keep white for the red voting background */
+}
+.phase-reveal.active {
+    background-color: var(--color-text-subtle);
+    color: black;
+}
 
 /* Emergency Refresh Button */
 .force-refresh {
@@ -571,4 +589,27 @@ body.phase-voting .phase-vote,
 body.phase-reveal .phase-reveal {
     font-weight: 700;
     background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Debug Controls */
+.debug-controls {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    background: rgba(0,0,0,0.7);
+    padding: 10px;
+    border-radius: 5px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.debug-controls button {
+    padding: 5px 10px;
+    background: #f44336;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
 }
