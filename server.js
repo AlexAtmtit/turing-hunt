@@ -36,6 +36,10 @@ function generateEmojiAvatar() {
     return EMOJI_AVATARS[Math.floor(Math.random() * EMOJI_AVATARS.length)];
 }
 
+// --- >>> NEW: Add timeout constants <<< ---
+const FIRST_ATTEMPT_TIMEOUT = 15000; // 15 seconds for the first try
+const RETRY_TIMEOUT = 10000; // 10 seconds for the retry
+
 // --- Game Session Class ---
 class GameSession {
     // Constructor, initializePlayers, getPublicPlayerData (keep as before)
@@ -80,61 +84,114 @@ class GameSession {
     startGameLoop() { this.startNextRound(); }
     startNextRound() { /* ... keep checkGameEnd() call */ if (this.checkGameEnd()) return; this.currentRound++; this.currentAskerId = null; this.currentQuestion = null; this.answers.clear(); this.votes.clear(); this.players.forEach(p => p.hasVoted = false); console.log(`\n--- Game ${this.id}: Starting Round ${this.currentRound} ---`); this.startPhase('ASKING'); }
 
-    // --- >>> UPDATED: startPhase Method <<< ---
-    async startPhase(phaseName) { // Make async to handle await for AI calls
+    // --- >>> NEW: Add AI Action Retry Helper <<< ---
+    async attemptAIActionWithRetry(player, actionType, context) {
+        const actionFuncMap = {
+            question: aiController.getAIQuestion,
+            answer: aiController.getAIAnswer,
+            vote: aiController.getAIVote
+        };
+        const fallbackValueMap = {
+            question: "What is your favorite season?",
+            answer: "(AI Answer Timed Out / Error)",
+            vote: null
+        };
+
+        const actionFunc = actionFuncMap[actionType];
+        const fallback = fallbackValueMap[actionType];
+        const playerName = player.name || player.id;
+
+        console.log(`Game ${this.id}: AI ${playerName} attempting ${actionType} (Attempt 1)`);
+
+        try {
+            const result = await Promise.race([
+                actionFunc(player, context?.question, context?.answersData),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), FIRST_ATTEMPT_TIMEOUT))
+            ]);
+
+            const resultIsError = typeof result !== 'string' || result.length < 2 || 
+                                result.toLowerCase().includes("error") || 
+                                result.toLowerCase().includes("blocked") || 
+                                result.toLowerCase().includes("timeout");
+            const resultIsVoteError = actionType === 'vote' && (result === null || resultIsError);
+
+            if (!resultIsError && !resultIsVoteError) {
+                console.log(`Game ${this.id}: AI ${playerName} ${actionType} success (Attempt 1)`);
+                return result;
+            }
+            throw new Error('Invalid result');
+        } catch (error) {
+            console.warn(`Game ${this.id}: AI ${playerName} ${actionType} failed (Attempt 1). Retrying...`);
+            
+            try {
+                const retryResult = await Promise.race([
+                    actionFunc(player, context?.question, context?.answersData),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), RETRY_TIMEOUT))
+                ]);
+
+                const retryIsError = typeof retryResult !== 'string' || retryResult.length < 2 ||
+                                   retryResult.toLowerCase().includes("error") ||
+                                   retryResult.toLowerCase().includes("blocked") ||
+                                   retryResult.toLowerCase().includes("timeout");
+                const retryVoteIsError = actionType === 'vote' && (retryResult === null || retryIsError);
+
+                if (!retryIsError && !retryVoteIsError) {
+                    console.log(`Game ${this.id}: AI ${playerName} ${actionType} success (Attempt 2)`);
+                    return retryResult;
+                }
+                throw new Error('Invalid retry result');
+            } catch (retryError) {
+                console.error(`Game ${this.id}: AI ${playerName} ${actionType} failed (Attempt 2). Using fallback.`);
+                return fallback;
+            }
+        }
+    }
+
+    // --- >>> UPDATE: startPhase to use retry wrapper <<< ---
+    async startPhase(phaseName) {
         this.currentPhase = phaseName; const duration = ROUND_PHASE_DURATION[phaseName]; console.log(`Game ${this.id}: Phase: ${phaseName} (${duration}s)`);
         if(this.activeTimers.phaseTimeout) { clearTimeout(this.activeTimers.phaseTimeout); this.activeTimers.phaseTimeout = null; }
         let phaseData = { round:this.currentRound, phase:phaseName, duration:duration };
 
-        try { // Wrap phase logic in try/catch for async errors
+        try {
             if (phaseName === 'ASKING') {
                 const active = this.players.filter(p=>p.status==='active'); if(active.length<2){this.endGame("Not enough players"); return;} this.currentAskerId = active[~~(Math.random()*active.length)].id; const asker=this.players.find(p=>p.id===this.currentAskerId); phaseData.askerId = this.currentAskerId; phaseData.askerName = asker?.name || '?'; console.log(`Game ${this.id}: ${phaseData.askerName} asking.`);
 
-                if (!asker.isHuman) { // AI is asker
-                    const question = await aiController.getAIQuestion(asker); // Use imported controller
-                    console.log(`Game ${this.id}: AI ${asker.name} generated question via API: "${question}"`);
-                    // Use setTimeout to allow event loop to process before handling (prevents potential race condition if API is super fast)
-                     setTimeout(() => this.handlePlayerQuestion(this.currentAskerId, question), 50);
-                } else { // Human asker, set timeout
-                     this.activeTimers.phaseTimeout = setTimeout(()=>this.handleAskTimeout(), duration * 1000);
+                if (!asker.isHuman) {
+                    const question = await this.attemptAIActionWithRetry(asker, 'question');
+                    setTimeout(() => this.handlePlayerQuestion(this.currentAskerId, question), 50);
+                } else {
+                    this.activeTimers.phaseTimeout = setTimeout(() => this.handleAskTimeout(), duration * 1000);
                 }
 
             } else if (phaseName === 'ANSWERING') {
                 if(!this.currentQuestion) this.currentQuestion="Default Q"; phaseData.question = this.currentQuestion; phaseData.askerId = this.currentAskerId; phaseData.askerName = this.players.find(p=>p.id===this.currentAskerId)?.name||'?';
 
-                // Trigger AI answers (no need to await all, they happen in parallel)
-                this.players.forEach(p=>{
-                    if(p.status==='active' && !p.isHuman && p.id!==this.currentAskerId){
-                         aiController.getAIAnswer(p, this.currentQuestion) // Use imported controller
-                           .then(answer => {
-                                console.log(`Game ${this.id}: AI ${p.name} API Answer: "${answer}"`);
-                                this.handlePlayerAnswer(p.id, answer); // Handle answer when promise resolves
-                           })
-                           .catch(e=>{ // Catch errors for individual AI answer calls
-                                console.error(`Game ${this.id}: Error getting AI answer for ${p.name}:`, e);
-                                this.handlePlayerAnswer(p.id, "(AI Answer Err)"); // Handle error case
-                           });
-                     }
+                this.players.forEach(p => {
+                    if (p.status === 'active' && !p.isHuman && p.id !== this.currentAskerId) {
+                        this.attemptAIActionWithRetry(p, 'answer', { question: this.currentQuestion })
+                            .then(answer => this.handlePlayerAnswer(p.id, answer))
+                            .catch(e => {
+                                console.error(`Game ${this.id}: Critical error in answer retry logic for ${p.name}:`, e);
+                                this.handlePlayerAnswer(p.id, "(AI Logic Error)");
+                            });
+                    }
                 });
                 this.activeTimers.phaseTimeout = setTimeout(()=>this.handleAnswerTimeout(), duration * 1000);
 
             } else if (phaseName === 'VOTING') {
                 const answersPayload = {}; this.answers.forEach((ans, pid)=>{const p=this.players.find(pl=>pl.id===pid); answersPayload[pid]={name:p?.name||'?',answer:ans};}); phaseData.answers=answersPayload; phaseData.question=this.currentQuestion;
 
-                // Trigger AI Votes (no need to await all)
-                this.players.forEach(p=>{
-                     if(p.status==='active' && !p.isHuman){
-                         aiController.getAIVote(p, this.currentQuestion, answersPayload) // Use imported controller
-                            .then(votedId => {
-                                 console.log(`Game ${this.id}: AI ${p.name} API Vote Result: ${votedId}`);
-                                 this.handlePlayerVote(p.id, votedId); // Handle vote when promise resolves
-                            })
-                            .catch(e=>{ // Catch errors for individual AI vote calls
-                                 console.error(`Game ${this.id}: Error getting AI vote for ${p.name}:`, e);
-                                 this.handlePlayerVote(p.id, null); // Abstain on error
+                this.players.forEach(p => {
+                    if (p.status === 'active' && !p.isHuman) {
+                        this.attemptAIActionWithRetry(p, 'vote', { answersData: answersPayload })
+                            .then(votedId => this.handlePlayerVote(p.id, votedId))
+                            .catch(e => {
+                                console.error(`Game ${this.id}: Critical error in vote retry logic for ${p.name}:`, e);
+                                this.handlePlayerVote(p.id, null);
                             });
-                     }
-                 });
+                    }
+                });
                 this.activeTimers.phaseTimeout = setTimeout(()=>this.handleVoteTimeout(), duration * 1000);
 
             } else if (phaseName === 'REVEAL') {
@@ -171,7 +228,6 @@ class GameSession {
              this.endGame(`Critical error during ${phaseName}`);
         }
     }
-    // --- >>> END UPDATE <<< ---
 
     // calculateResults, checkGameEnd (keep as before)
     calculateResults() { /* ... */ const vC={}; const act=this.players.filter(p=>p.status==='active'); act.forEach(p=>{vC[p.id]=0;}); this.votes.forEach((vId,voterId)=>{const vr=this.players.find(p=>p.id===voterId);if(vId!==null&&vC.hasOwnProperty(vId)&&vr?.status==='active'){vC[vId]++;}}); console.log(`Vote counts:`,vC); let maxV=0; for(const pId in vC){if(vC[pId]>maxV)maxV=vC[pId];} const elimIds=[],elimN=[];if(maxV>0){for(const pId in vC){if(vC[pId]===maxV){elimIds.push(pId);const p=this.players.find(pl=>pl.id===pId);if(p)elimN.push(p.name);}}} return{voteCounts:vC,eliminatedIds:elimIds,eliminatedNames:elimN}; }
