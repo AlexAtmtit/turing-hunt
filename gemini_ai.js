@@ -3,9 +3,11 @@ require('dotenv').config(); // Ensure env vars are loaded if this file is run st
 const axios = require('axios');
 
 // --- Configuration ---
-const API_KEY = process.env.GEMINI_API_KEY;
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
-const DEFAULT_TIMEOUT = 10000; // 10 seconds timeout for API calls
+const API_KEY = process.env.OPENROUTER_API_KEY;
+const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const MODEL_NAME = 'liquid/lfm-7b';
+const DEFAULT_TIMEOUT = 15000;
+const HTTP_REFERER = process.env.OPENROUTER_APP_URL || "http://localhost:3000";
 
 // --- Safety & Generation Config ---
 const DEFAULT_SAFETY_SETTINGS = [
@@ -60,40 +62,50 @@ Vote for Player ID:`;
 // --- End Prompt Templates ---
 
 if (!API_KEY) {
-    console.error("FATAL ERROR: GEMINI_API_KEY environment variable not set.");
-    // Using mock requires changing the callGeminiAPI function or how it's used
+    console.error("FATAL ERROR: OPENROUTER_API_KEY environment variable not set.");
 }
 
-// Helper function to make the API call (keep as before)
-async function callGeminiAPI(promptText, safetySettings = DEFAULT_SAFETY_SETTINGS, generationConfig = null) {
+// Updated API call helper
+async function callAIAPI(promptText, config = {}) {
     if (!API_KEY) {
-         console.warn("Gemini API key missing, returning mock response.");
+         console.warn("OpenRouter API key missing, returning mock response.");
          await new Promise(resolve => setTimeout(resolve, 500));
-         return `Mock response: ${promptText.substring(0, 50)}...`;
+         return `Mock: ${promptText.substring(0, 50)}...`;
     }
+
     const requestBody = {
-        contents: [{ parts: [{ text: promptText }] }],
-        ...(safetySettings && { safetySettings }),
-        ...(generationConfig && { generationConfig }),
+        model: MODEL_NAME,
+        messages: [
+            { role: "user", content: promptText }
+        ],
+        ...(config.temperature && { temperature: config.temperature }),
+        ...(config.max_tokens && { max_tokens: config.max_tokens }),
     };
-    console.log(`Calling Gemini API... Prompt (start): "${promptText.substring(0,100)}..."`);
+
     try {
-        const response = await axios.post(API_URL, requestBody, { headers:{'Content-Type':'application/json'}, timeout:DEFAULT_TIMEOUT });
-        const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        const response = await axios.post(API_URL, requestBody, {
+             headers: {
+                 'Content-Type': 'application/json',
+                 'Authorization': `Bearer ${API_KEY}`,
+                 'HTTP-Referer': HTTP_REFERER,
+             },
+             timeout: DEFAULT_TIMEOUT
+        });
+
+        const text = response.data?.choices?.[0]?.message?.content;
         if (text) {
-            console.log(`Gemini Response (start): "${text.substring(0, 100)}..."`);
+            console.log(`OpenRouter Response (start): "${text.substring(0, 100)}..."`);
             return text.trim();
-        } else { /* ... keep error handling for blocks/missing text ... */
-            console.error("Error: Could not extract text from Gemini response.", JSON.stringify(response.data, null, 2));
-            const blockReason=response.data?.promptFeedback?.blockReason; const safetyRatings=response.data?.candidates?.[0]?.safetyRatings;
-            if(blockReason) { console.error(`Blocked: ${blockReason}`); return `(Blocked: ${blockReason})`; }
-            if(safetyRatings) { console.error("Safety ratings:", safetyRatings); const blockedCategory=safetyRatings.find(r=>r.blocked)?.category; if(blockedCategory) return `(Blocked: ${blockedCategory})`; }
-            return "(Error generating text)";
+        } else {
+            console.error("Error: Could not extract text from OpenRouter response.", JSON.stringify(response.data, null, 2));
+            const errorMessage = response.data?.error?.message || "Unknown error structure";
+            return `(Error: ${errorMessage})`;
         }
-    } catch (error) { /* ... keep error handling for API errors/timeout ... */
-        console.error("Error calling Gemini API:", error.response ? JSON.stringify(error.response.data, null, 2) : error.message);
+    } catch (error) {
+        console.error("Error calling OpenRouter API:", error.response ? JSON.stringify(error.response.data, null, 2) : error.message);
         if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) { return "(API Timeout)"; }
-        return "(API Error)";
+        const errorMessage = error.response?.data?.error?.message || error.message;
+        return `(API Error: ${errorMessage.substring(0, 50)})`;
     }
 }
 
@@ -108,7 +120,8 @@ async function getAIQuestion(playerProfile) {
     const promptText = QUESTION_PROMPT_TEMPLATE
         .replace("${playerName}", promptData.playerName);
 
-    let generatedQuestion = await callGeminiAPI(promptText, DEFAULT_SAFETY_SETTINGS, QUESTION_GEN_CONFIG);
+    const config = { max_tokens: 20, temperature: 0.8 };
+    let generatedQuestion = await callAIAPI(promptText, config);
 
     // Post-processing (keep as before)
     if (generatedQuestion.length > 40) generatedQuestion = generatedQuestion.substring(0, 40).trim() + "?";
@@ -131,7 +144,8 @@ async function getAIAnswer(playerProfile, question) {
          .replace("${playerName}", promptData.playerName)
          .replace("${questionText}", promptData.questionText);
 
-    let generatedAnswer = await callGeminiAPI(promptText, DEFAULT_SAFETY_SETTINGS, ANSWER_GEN_CONFIG);
+    const config = { max_tokens: 40, temperature: 0.7 };
+    let generatedAnswer = await callAIAPI(promptText, config);
 
      // Post-processing (keep as before)
      if (generatedAnswer.length > 100) generatedAnswer = generatedAnswer.substring(0, 100).trim();
@@ -172,8 +186,8 @@ async function getAIVote(playerProfile, question, answersData) {
          .replace("${questionText}", promptData.questionText)
          .replace("${otherPlayersAnswers}", promptData.otherPlayersAnswers);
 
-
-    let votedPlayerId = await callGeminiAPI(promptText, DEFAULT_SAFETY_SETTINGS, VOTE_GEN_CONFIG);
+    const config = { max_tokens: 25, temperature: 0.5 };
+    let votedPlayerId = await callAIAPI(promptText, config);
 
     // Post-processing (keep as before, but use validIds collected earlier)
     votedPlayerId = votedPlayerId.trim();
