@@ -1,66 +1,398 @@
-/* style.css */
-body { font-family: 'system-ui', sans-serif; margin: 0; padding: 1em; background-color: #f0f0f0; color: #333; overscroll-behavior: none; }
-#game-container { max-width: 800px; margin: auto; background-color: #fff; padding: 1em; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; flex-direction: column; min-height: 90vh; }
-#status-area { padding-bottom: 1em; border-bottom: 1px solid #eee; margin-bottom: 1em; min-height: 40px; display: flex; justify-content: space-between; align-items: center; }
-#status-message { font-weight: bold; margin: 0; flex-grow: 1; /* Allow status to take space */ padding-right: 1em; }
-#timer-display { font-size: 1.1em; font-weight: bold; color: #FF6B6B; margin: 0; white-space: nowrap; /* Prevent wrap */ }
-#game-area { display: none; flex-grow: 1; display: flex; flex-direction: column; }
-#question-display { background-color: #e8f7f9; padding: 0.75em; border-radius: 4px; margin-bottom: 1em; min-height: 1.5em; font-style: italic; color: #0b5f6f; border-left: 5px solid #4ECDC4; word-wrap: break-word; }
+/* style.css - Notion-Inspired Minimal Theme */
 
-#player-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); /* Slightly wider min */ gap: 1em; margin-bottom: 1em; flex-grow: 1; }
+/* --- Variables --- */
+:root {
+    --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+
+    --color-bg: #FFFFFF;         /* White background */
+    --color-text: #1E1E1E;         /* Near-black text */
+    --color-text-subtle: #6B7280; /* Gray for subtle text */
+    --color-border: #E5E7EB;       /* Light gray border */
+    --color-card-bg: #FFFFFF;      /* Card background (can be same as page bg) */
+    --color-card-border: #E5E7EB;
+    --color-accent: #2563EB;       /* A nice blue accent */
+    --color-accent-hover: #1D4ED8;
+    --color-accent-text: #FFFFFF;
+    --color-status-ask: #F59E0B;    /* Amber for asking highlight */
+    --color-status-vote: #EF4444;   /* Red for voting buttons */
+    --color-status-vote-hover: #DC2626;
+    --color-status-elim: #EF4444;   /* Red for eliminated */
+    --color-success: #10B981;    /* Green (optional) */
+    --color-disabled-bg: #F3F4F6;
+    --color-disabled-text: #9CA3AF;
+
+    --border-radius: 6px;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+
+/* --- Base Styles --- */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--font-sans);
+    margin: 0;
+    padding: 1rem;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior: none;
+}
+
+/* --- Container --- */
+#game-container {
+    max-width: 700px; /* Slightly narrower */
+    margin: 1rem auto;
+    background-color: var(--color-card-bg); /* Could match page bg */
+    padding: 1.5rem;
+    border-radius: var(--border-radius);
+    /* No shadow for cleaner look, rely on padding/borders */
+    /* border: 1px solid var(--color-border); */
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 4rem); /* Adjust based on body padding */
+}
+
+/* --- Typography --- */
+h1 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    margin: 0 0 1rem 0;
+    color: var(--color-text);
+}
+
+p {
+    margin: 0 0 0.75rem 0;
+}
+
+/* --- Sections --- */
+#status-area {
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap; /* Allow wrap on small screens */
+    gap: 0.5rem;
+}
+#status-message {
+    font-weight: 500;
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+#timer-display {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--color-text-subtle);
+    margin: 0;
+    white-space: nowrap;
+}
+
+#game-area {
+    display: none;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+#question-display {
+    background-color: transparent; /* No background */
+    padding: 0.5rem 0; /* Only vertical padding */
+    margin: 0 0 1.5rem 0; /* Adjusted margin */
+    min-height: 1.5em;
+    font-size: 1.1rem; /* Slightly larger question */
+    font-weight: 500;
+    color: var(--color-text);
+    border-left: 3px solid var(--color-accent); /* Accent border */
+    padding-left: 0.75rem;
+    word-wrap: break-word;
+}
+#question-display:empty {
+    display: none; /* Hide if no question text */
+}
+
+
+/* --- Player List & Cards --- */
+#player-list {
+    display: grid;
+    /* Mobile first: 2 columns */
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-grow: 1;
+}
 
 .player-card {
-    border: 2px solid #ddd; border-radius: 8px; padding: 0.8em; background-color: #f9f9f9; display: flex; flex-direction: column; align-items: center; text-align: center; transition: all 0.3s ease; overflow: hidden; word-wrap: break-word; position: relative; min-height: 170px; /* Increased height for details */ box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border: 1px solid var(--color-card-border);
+    border-radius: var(--border-radius);
+    padding: 1rem 0.8rem; /* More padding */
+    background-color: var(--color-card-bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    transition: all 0.2s ease-in-out;
+    overflow: hidden;
+    position: relative;
+    min-height: 140px; /* Adjusted height */
+    box-shadow: var(--shadow-sm);
 }
-.player-card span.player-name { font-size: 0.95em; font-weight: bold; margin-bottom: 0.4em; display: block; }
+.player-card:hover {
+     box-shadow: var(--shadow);
+     border-color: #d1d5db; /* Slightly darker on hover */
+}
+
+.player-card .avatar-container { /* Added container for avatar */
+    margin-bottom: 0.75rem;
+}
+
+.player-card .player-name {
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    display: inline; /* Keep inline but manage spacing */
+    word-break: break-word;
+}
+
+/* Thinking Indicator */
+.thinking-indicator {
+    display: inline-block;
+    width: 1.5em; /* Width for 3 dots */
+    text-align: left;
+    vertical-align: bottom;
+    margin-left: 2px;
+    font-weight: bold;
+    animation: dots 1.4s infinite steps(4, end);
+    display: none; /* Hidden by default */
+}
+
+@keyframes dots {
+  0%  { content: ""; }
+  25% { content: "."; }
+  50% { content: ".."; }
+  75% { content: "..."; }
+  100%{ content: "..."; } /* Hold last frame */
+}
+
 
 /* Answer/Vote Details Area */
-.player-card p.player-details {
-    font-size: 0.8em; /* Smaller text for details */
-    margin: 0.3em 0; padding: 0.4em; background-color: #f0f0f0; border-radius: 4px; width: 95%; word-wrap: break-word; min-height: 2.5em; /* More space for votes */ color: #555; font-style: normal; /* Normal style for reveal */ display: none; box-sizing: border-box;
+.player-card .player-details {
+    font-size: 0.85rem;
+    margin: 0.5rem 0;
+    padding: 0.5em 0.6em;
+    background-color: #F9FAFB; /* Very light gray background */
+    border-radius: 4px;
+    width: 95%;
+    word-wrap: break-word;
+    min-height: 2.5em;
+    color: var(--color-text-subtle); /* Subtle text for details */
+    font-style: normal;
+    display: none; /* Hide by default */
+    box-sizing: border-box;
+    line-height: 1.4;
+}
+.player-card p.player-details.is-answer {
+     font-style: italic; /* Italic only for answers */
 }
 .player-card p.player-details:empty { display: none; }
-/* Style for answers during voting */
-.player-card p.player-details.is-answer {
-     background-color: #eef; font-style: italic; color: #334;
-}
+
 
 /* Vote Button */
-.vote-button-container { margin-top: auto; padding-top: 0.5em; width: 100%; display: none; }
-button.vote-button { background-color: #ff8c8c; color: white; border: none; padding: 0.5em 0.3em; border-radius: 4px; cursor: pointer; font-size: 0.8em; width: 90%; box-sizing: border-box; font-weight: bold; transition: background-color 0.2s ease; }
-button.vote-button:hover:not(:disabled) { background-color: #e65c5c; }
-button.vote-button:disabled { background-color: #ccc; cursor: not-allowed; }
-
-/* Status Highlights */
-.player-card.is-me { border-color: #45B7D1; background-color: #e8f7f9; font-weight: bold; }
-.player-card.current-asker { border-color: #FED766; box-shadow: 0 0 8px rgba(254, 215, 102, 0.7); }
-/* Elimination Styles */
-.player-card.eliminated { opacity: 0.5; background-color: #e0e0e0; border-style: dashed; border-color: #999; }
-.player-card.eliminated span.player-name { text-decoration: line-through; color: #777; }
-.player-card.eliminated p.player-details,
-.player-card.eliminated .vote-button-container { display: none !important; } /* Hide details/buttons if eliminated */
-
-/* --- >>> NEW: Reveal Highlight <<< --- */
-.player-card.eliminated-card {
-     border-color: red !important;
-     background-color: #fee !important;
-     opacity: 0.6 !important; /* Keep slightly visible but clearly marked */
-     transform: scale(0.95); /* Slightly shrink */
-     box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+.vote-button-container {
+    margin-top: auto; padding-top: 0.75em; width: 100%; display: none;
 }
-/* --- >>> END NEW <<< --- */
+button.vote-button {
+    background-color: transparent; /* Transparent background */
+    color: var(--color-status-vote); /* Red text */
+    border: 1px solid var(--color-status-vote); /* Red border */
+    padding: 0.4em 0.8em;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-size: 0.8em;
+    width: auto; /* Fit content */
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+button.vote-button:hover:not(:disabled) {
+    background-color: var(--color-status-vote); /* Fill red on hover */
+    color: var(--color-accent-text); /* White text */
+}
+button.vote-button:disabled {
+    border-color: var(--color-disabled-text);
+    color: var(--color-disabled-text);
+    background-color: transparent;
+    cursor: not-allowed;
+}
 
 
-/* Input Area */
-#input-area { display: none; margin-top: auto; padding-top: 1em; border-top: 1px solid #eee; }
-#input-area label { display: block; margin-bottom: 0.5em; font-weight: bold; }
-#input-area div { display: flex; }
-#game-input { flex-grow: 1; padding: 0.7em; margin-right: 5px; border: 1px solid #ccc; border-radius: 4px; }
-#submit-button { padding: 0.7em 1em; border: none; background-color: #4ECDC4; color: white; border-radius: 4px; cursor: pointer; font-weight: bold; }
-#submit-button:hover:not(:disabled) { background-color: #45B7D1; }
-#submit-button:disabled { background-color: #cccccc; cursor: not-allowed; }
+/* --- State Styles --- */
+.player-card.is-me {
+    border-color: var(--color-accent);
+    background-color: #EFF6FF; /* Very light blue */
+}
+.player-card.current-asker {
+    border-color: var(--color-status-ask);
+    box-shadow: 0 0 6px 0px rgb(245 158 11 / 0.5); /* Amber glow */
+}
+.player-card.eliminated {
+    opacity: 0.6;
+    background-color: var(--color-disabled-bg);
+    border-style: dashed;
+    border-color: var(--color-disabled-text);
+}
+.player-card.eliminated .player-name { text-decoration: line-through; }
+.player-card.eliminated .player-details,
+.player-card.eliminated .vote-button-container { display: none !important; }
 
-/* Responsive */
-@media (max-width: 600px) { #player-list { grid-template-columns: repeat(3, 1fr); gap: 0.5em; } .player-card span.player-name { font-size: 0.8em; } .player-card p.player-details { font-size: 0.75em; } button.vote-button { font-size: 0.7em; } #input-area div { flex-direction: column; } #game-input { margin-right: 0; margin-bottom: 5px; } }
-@media (max-width: 400px) { #player-list { grid-template-columns: repeat(2, 1fr); } }
-a[href="https://jam.pieter.com"] { z-index: 10000 !important; } /* Jam link */
+.player-card.eliminated-card {
+     border-color: var(--color-status-elim) !important;
+     background-color: #FEF2F2 !important; /* Very light red */
+     opacity: 0.7 !important;
+     transform: scale(0.98); /* Subtle shrink */
+}
+.player-card.eliminated-card .player-name span { /* Target the ELIMINATED span */
+    font-size: 0.8em; margin-left: 0.3em;
+}
+
+/* --- Input Area --- */
+#input-area {
+    display: none;
+    margin-top: auto; /* Push to bottom */
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-border);
+}
+#input-area label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+#input-area div { display: flex; gap: 0.5rem; } /* Use gap for spacing */
+#game-input {
+    flex-grow: 1;
+    padding: 0.6em 0.8em;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    font-size: 0.95rem;
+    background-color: #F9FAFB; /* Slightly off-white input */
+    color: var(--color-text);
+}
+#game-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+#submit-button {
+    padding: 0.6em 1.2em;
+    border: none;
+    background-color: var(--color-accent);
+    color: var(--color-accent-text);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.9rem;
+    transition: background-color 0.2s ease;
+    white-space: nowrap;
+}
+#submit-button:hover:not(:disabled) { background-color: var(--color-accent-hover); }
+#submit-button:disabled {
+    background-color: var(--color-disabled-bg);
+    color: var(--color-disabled-text);
+    cursor: not-allowed;
+}
+
+
+/* --- Responsive --- */
+
+/* Desktop and larger tablets */
+@media (min-width: 640px) {
+    #player-list {
+        /* 3 columns */
+        grid-template-columns: repeat(3, 1fr);
+    }
+     h1 { font-size: 2rem; }
+}
+
+/* --- Game Over State --- */
+.game-over #game-area,
+.game-over #input-area {
+     opacity: 0.7; /* Dim game area when over */
+}
+
+
+/* --- Vibe Jam Link --- */
+a[href="https://jam.pieter.com"] { z-index: 10000 !important; }
+
+/* --- Rules Box Styles --- */
+#rules-box {
+    background-color: #F9FAFB;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: 1rem 1.5rem;
+    margin-top: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+#rules-box h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 0.75rem 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+#rules-box ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#rules-box li {
+    font-size: 0.9rem;
+    color: var(--color-text-subtle);
+    margin-bottom: 0.5rem;
+    line-height: 1.5;
+}
+
+#rules-box li:last-child {
+    margin-bottom: 0;
+}
+
+#rules-box strong {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+/* NEW Waiting Dots Animation Styles */
+.waiting-dots {
+    display: inline-block;
+    vertical-align: baseline;
+    line-height: 1;
+    margin-left: 2px;
+}
+
+.waiting-dots span {
+    opacity: 0;
+    font-weight: bold;
+    font-size: 1.2em;
+    animation: blink 1.4s infinite;
+}
+
+.waiting-dots span:nth-child(1) { animation-delay: 0s; }
+.waiting-dots span:nth-child(2) { animation-delay: 0.2s; }
+.waiting-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes blink {
+    0% { opacity: 0.2; }
+    20% { opacity: 1; }
+    100% { opacity: 0.2; }
+}
