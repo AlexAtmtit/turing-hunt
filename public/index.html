@@ -36,6 +36,15 @@
             <!-- Question Display -->
             <h2 id="question-display"></h2>
 
+            <!-- Input Area -->
+            <div id="input-area">
+                 <label id="input-label" for="game-input">Your Input:</label>
+                 <div>
+                    <input type="text" id="game-input" autocomplete="off">
+                    <button id="submit-button">Submit</button>
+                </div>
+            </div>
+
             <!-- Player List Area -->
             <div id="player-list">
                 <!-- Player cards will be added here by app.js -->
@@ -52,15 +61,6 @@
             <!-- Answer Area (We display answers within player cards now, so this might be removed later) -->
             <div id="answer-area" style="display: none;">
                 <!-- Kept hidden for now -->
-            </div>
-        </div>
-
-        <!-- Input Area: For asking questions or submitting answers -->
-        <div id="input-area">
-             <label id="input-label" for="game-input">Your Input:</label>
-             <div> <!-- Wrapper for flex layout -->
-                <input type="text" id="game-input" autocomplete="off">
-                <button id="submit-button">Submit</button>
             </div>
         </div>
 

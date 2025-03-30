@@ -191,35 +191,126 @@ socket.on('game_start', (initialData) => {
 });
 
 socket.on('new_round_phase', (data) => {
-    console.log('New Phase:', data?.phase, data); if (!data?.phase || typeof data.duration === 'undefined') return;
-    currentPhase = data.phase; hasVotedThisRound = false; startTimer(data.duration);
+    console.log('New Phase:', data?.phase, data); 
+    if (!data?.phase || typeof data.duration === 'undefined') return;
+    currentPhase = data.phase; 
+    hasVotedThisRound = false; 
+    startTimer(data.duration);
+
+    // Reset UI - Clear with textContent first to remove any existing animation spans
+    if (questionDisplay) questionDisplay.textContent = '';
+    if (statusMessage) statusMessage.textContent = '';
+    
     // Reset UI
-    if (questionDisplay) questionDisplay.textContent = ''; if (inputArea) inputArea.style.display = 'none'; if (gameInput) { gameInput.disabled = false; gameInput.value = ''; } if (submitButton) { submitButton.disabled = false; }
-    if (playerList) { playerList.querySelectorAll('.player-details').forEach(el => { el.textContent = ''; el.style.display = 'none'; el.classList.remove('is-answer'); }); playerList.querySelectorAll('.vote-button-container').forEach(el => { el.innerHTML = ''; el.style.display = 'none'; }); playerList.querySelectorAll('.player-card.current-asker').forEach(el => el.classList.remove('current-asker')); playerList.querySelectorAll('.player-card.eliminated-card').forEach(el => el.classList.remove('eliminated-card')); playerList.querySelectorAll('.player-name span[style*="color:red"]').forEach(el => el.remove()); playerList.querySelectorAll('.thinking-indicator').forEach(el => el.style.display = 'none'); }
+    if (inputArea) inputArea.style.display = 'none';
+    if (gameInput) { gameInput.disabled = false; gameInput.value = ''; }
+    if (submitButton) { submitButton.disabled = false; }
+    if (playerList) {
+        playerList.querySelectorAll('.player-details').forEach(el => {
+            el.textContent = '';
+            el.style.display = 'none';
+            el.classList.remove('is-answer');
+        });
+        playerList.querySelectorAll('.vote-button-container').forEach(el => {
+            el.innerHTML = '';
+            el.style.display = 'none';
+        });
+        playerList.querySelectorAll('.player-card.current-asker').forEach(el => el.classList.remove('current-asker'));
+        playerList.querySelectorAll('.player-card.eliminated-card').forEach(el => el.classList.remove('eliminated-card'));
+        playerList.querySelectorAll('.player-name span[style*="color:red"]').forEach(el => el.remove());
+        playerList.querySelectorAll('.thinking-indicator').forEach(el => el.style.display = 'none');
+    }
 
     renderPlayerList(currentPlayers, {}); // Render base list first
 
     if (currentPhase === 'ASKING') {
-        if (typeof data.askerId === 'undefined') return; currentAskerId = data.askerId; const askerName = data.askerName || '?';
-        if (statusMessage) statusMessage.textContent = `Round ${data.round}: ${askerName} asking...`; if (questionDisplay) questionDisplay.textContent = `Waiting for ${askerName}...`;
-        const askerCard = playerList?.querySelector(`.player-card[data-player-id="${data.askerId}"]`); if (askerCard) { askerCard.classList.add('current-asker'); if (data.askerId !== myPlayerId) { const indicator = askerCard.querySelector('.thinking-indicator'); if (indicator) indicator.style.display = 'inline-block'; } }
-        if (data.askerId === myPlayerId) { if (inputArea && inputLabel && submitButton && gameInput) { inputArea.style.display = 'block'; inputLabel.textContent = `Ask (max ${QUESTION_MAX_LENGTH}):`; submitButton.textContent = 'Submit Q'; gameInput.placeholder = 'Question...'; gameInput.maxLength = QUESTION_MAX_LENGTH; } }
+        if (typeof data.askerId === 'undefined') return;
+        currentAskerId = data.askerId;
+        const askerName = data.askerName || '?';
+        
+        // Add animation spans using innerHTML
+        if (statusMessage) {
+            statusMessage.innerHTML = `Round ${data.round}: ${askerName} asking<span class="waiting-dots"></span>`;
+        }
+        if (questionDisplay) {
+            questionDisplay.innerHTML = `Waiting for ${askerName}<span class="waiting-dots"></span>`;
+        }
+
+        const askerCard = playerList?.querySelector(`.player-card[data-player-id="${data.askerId}"]`);
+        if (askerCard) {
+            askerCard.classList.add('current-asker');
+            if (data.askerId !== myPlayerId) {
+                const indicator = askerCard.querySelector('.thinking-indicator');
+                if (indicator) indicator.style.display = 'inline-block';
+            }
+        }
+        if (data.askerId === myPlayerId) {
+            if (inputArea && inputLabel && submitButton && gameInput) {
+                inputArea.style.display = 'block';
+                inputLabel.textContent = `Ask (max ${QUESTION_MAX_LENGTH}):`;
+                submitButton.textContent = 'Submit Q';
+                gameInput.placeholder = 'Question...';
+                gameInput.maxLength = QUESTION_MAX_LENGTH;
+            }
+        }
     } else if (currentPhase === 'ANSWERING') {
-        if (typeof data.question === 'undefined' || typeof data.askerId === 'undefined') return; currentAskerId = data.askerId; const askerName = data.askerName || '?';
-        if (statusMessage) statusMessage.textContent = `Round ${data.round}: Answer!`; if (questionDisplay) questionDisplay.textContent = `Q (${askerName}): ${data.question}`;
-        const askerCard = playerList?.querySelector(`.player-card[data-player-id="${data.askerId}"]`); if (askerCard) askerCard.classList.add('current-asker');
-        currentPlayers.forEach(p => { if (p.status === 'active' && p.id !== currentAskerId) { const pCard = playerList?.querySelector(`.player-card[data-player-id="${p.id}"]`); if (pCard) { const indicator = pCard.querySelector('.thinking-indicator'); if (indicator) indicator.style.display = 'inline-block'; } } });
-        if (data.askerId !== myPlayerId) { if (inputArea && inputLabel && submitButton && gameInput) { inputArea.style.display = 'block'; inputLabel.textContent = `Your answer:`; submitButton.textContent = 'Submit A'; gameInput.placeholder = 'Answer...'; gameInput.maxLength = ANSWER_MAX_LENGTH; } }
-        else { if (statusMessage) statusMessage.textContent = `Round ${data.round}: Waiting for answers...`; }
+        // Use textContent to ensure no animation spans
+        if (statusMessage) statusMessage.textContent = `Round ${data.round}: Answer!`;
+        if (questionDisplay && data.question) {
+            questionDisplay.textContent = `Q (${data.askerName || '?'}): ${data.question}`;
+        }
+        
+        if (typeof data.question === 'undefined' || typeof data.askerId === 'undefined') return;
+        currentAskerId = data.askerId;
+        const askerName = data.askerName || '?';
+        if (askerName !== myPlayerId) {
+            if (inputArea && inputLabel && submitButton && gameInput) {
+                inputArea.style.display = 'block';
+                inputLabel.textContent = `Your answer:`;
+                submitButton.textContent = 'Submit A';
+                gameInput.placeholder = 'Answer...';
+                gameInput.maxLength = ANSWER_MAX_LENGTH;
+            }
+        } else {
+            if (statusMessage) statusMessage.textContent = `Round ${data.round}: Waiting for answers...`;
+        }
+
+        currentPlayers.forEach(p => {
+            if (p.status === 'active' && p.id !== currentAskerId) {
+                const pCard = playerList?.querySelector(`.player-card[data-player-id="${p.id}"]`);
+                if (pCard) {
+                    const indicator = pCard.querySelector('.thinking-indicator');
+                    if (indicator) indicator.style.display = 'inline-block';
+                }
+            }
+        });
     } else if (currentPhase === 'VOTING') {
-        if (statusMessage) statusMessage.textContent = `Round ${data.round}: Vote to eliminate!`; if (questionDisplay && data.question) questionDisplay.textContent = `Q: ${data.question}`;
+        // Use textContent to ensure clean display
+        if (statusMessage) statusMessage.textContent = `Round ${data.round}: Vote to eliminate!`;
+        if (questionDisplay && data.question) {
+            questionDisplay.textContent = `Q: ${data.question}`;
+        }
+        
         setupVotingUI(data.answers || {});
     } else if (currentPhase === 'REVEAL') {
+        // Use textContent for clean display
         if (statusMessage) statusMessage.textContent = `Round ${data.round}: Reveal!`;
-        if (data.results && Array.isArray(data.players)) { currentPlayers = data.players; renderPlayerList(currentPlayers, { results: data.results }); }
-        else if (data.results) { renderPlayerList(currentPlayers, { results: data.results }); console.warn("Reveal missing players update"); }
-        else { renderPlayerList(currentPlayers, {}); console.warn("Reveal missing results"); }
-        if (data.results) { const elimNames = data.results.eliminatedNames || []; if (statusMessage) statusMessage.textContent = elimNames.length > 0 ? `Eliminated: ${elimNames.join(', ')}!` : `Nobody eliminated!`; }
+        
+        if (data.results && Array.isArray(data.players)) {
+            currentPlayers = data.players;
+            renderPlayerList(currentPlayers, { results: data.results });
+        } else if (data.results) {
+            renderPlayerList(currentPlayers, { results: data.results });
+            console.warn("Reveal missing players update");
+        } else {
+            renderPlayerList(currentPlayers, {});
+            console.warn("Reveal missing results");
+        }
+
+        if (data.results) {
+            const elimNames = data.results.eliminatedNames || [];
+            if (statusMessage) statusMessage.textContent = elimNames.length > 0 ? `Eliminated: ${elimNames.join(', ')}!` : `Nobody eliminated!`;
+        }
     }
 });
 
