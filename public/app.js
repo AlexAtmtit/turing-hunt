@@ -63,32 +63,10 @@ function stopTimer() {
     if (timerDisplay) { timerDisplay.textContent = ''; }
 }
 
-function renderAvatar(avatarData) {
-    const safeAvatarData = avatarData || {};
-    const color1 = safeAvatarData.color1 || '#cccccc';
-    const color2 = safeAvatarData.color2 || '#aaaaaa';
-    const shape = safeAvatarData.shape || 'square';
-    const eyeStyle = safeAvatarData.eyeStyle || 'dots';
-    const avatarDiv = document.createElement('div');
-    avatarDiv.style.width = '40px'; avatarDiv.style.height = '40px';
-    avatarDiv.style.backgroundColor = color1; avatarDiv.style.border = `3px solid ${color2}`;
-    avatarDiv.style.position = 'relative'; avatarDiv.style.boxSizing = 'border-box'; avatarDiv.style.display = 'inline-block';
-    if (shape === 'circle') { avatarDiv.style.borderRadius = '50%'; }
-    else if (shape === 'square') { avatarDiv.style.borderRadius = '4px'; }
-    else if (shape === 'triangle') {
-        avatarDiv.style.width = '0px'; avatarDiv.style.height = '0px'; avatarDiv.style.backgroundColor = 'transparent';
-        const tBase = 40; const tSide = tBase / 2;
-        avatarDiv.style.borderLeft = `${tSide}px solid transparent`; avatarDiv.style.borderRight = `${tSide}px solid transparent`; avatarDiv.style.borderBottom = `${tBase}px solid ${color1}`;
-        avatarDiv.style.borderWidth = `0 ${tSide}px ${tBase}px ${tSide}px`; avatarDiv.style.borderColor = 'transparent'; avatarDiv.style.borderBottomColor = color1;
-        avatarDiv.style.backgroundColor = ''; avatarDiv.style.border = '';
-    }
-    if (shape !== 'triangle') {
-        const eye = document.createElement('span'); eye.textContent = eyeStyle === 'dots' ? '..' : '--';
-        eye.style.position = 'absolute'; eye.style.top = '8px'; eye.style.left = '50%'; eye.style.transform = 'translateX(-50%)';
-        eye.style.color = color2; eye.style.fontSize = '12px'; eye.style.zIndex = '1';
-        avatarDiv.appendChild(eye);
-    }
-    return avatarDiv;
+function renderEmojiAvatar(emojiString) {
+    const avatarSpan = document.createElement('span');
+    avatarSpan.textContent = emojiString || '❓'; // Use question mark if missing
+    return avatarSpan;
 }
 
 function renderPlayerList(players, displayData = {}) {
@@ -105,7 +83,10 @@ function renderPlayerList(players, displayData = {}) {
         if (player.id === myPlayerId) { playerCard.classList.add('is-me'); }
         if (player.id === currentAskerId && currentPhase !== 'REVEAL') { playerCard.classList.add('current-asker'); }
 
-        const avatarContainer = document.createElement('div'); avatarContainer.classList.add('avatar-container'); const avatarElement = renderAvatar(player.avatarData); avatarContainer.appendChild(avatarElement);
+        const avatarContainer = document.createElement('div');
+        avatarContainer.classList.add('avatar-container');
+        const avatarElement = renderEmojiAvatar(player.avatarEmoji);
+        avatarContainer.appendChild(avatarElement);
 
         const nameElement = document.createElement('span'); nameElement.classList.add('player-name'); nameElement.textContent = player.name || '???'; if (player.id === myPlayerId) nameElement.textContent += " (You)";
         const thinkingSpan = document.createElement('span'); thinkingSpan.classList.add('thinking-indicator'); thinkingSpan.style.display = 'none';

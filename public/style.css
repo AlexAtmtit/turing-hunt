@@ -90,7 +90,7 @@ p {
 #timer-display {
     font-size: 0.9rem;
     font-weight: 500;
-    color: var(--color-text-subtle);
+    color: var(--color-status-vote);  /* Changed from var(--color-text-subtle) to red vote color */
     margin: 0;
     white-space: nowrap;
 }
@@ -149,8 +149,10 @@ p {
      border-color: #d1d5db; /* Slightly darker on hover */
 }
 
-.player-card .avatar-container { /* Added container for avatar */
+.player-card .avatar-container {
     margin-bottom: 0.75rem;
+    font-size: 2.5rem;  /* Added larger font size for emoji */
+    line-height: 1;     /* Added to prevent extra spacing */
 }
 
 .player-card .player-name {

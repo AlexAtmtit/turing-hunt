@@ -21,12 +21,60 @@ const MAX_PLAYERS_FOR_GAME = 3; const AI_PLAYER_COUNT = 3; const TOTAL_PLAYERS =
 // Server State (keep as before)
 const waitingPlayers = new Set(); const activeGames = new Map(); let nextGameId = 1;
 
+// --- >>> NEW: Emoji List <<< ---
+const EMOJI_AVATARS = [
+    // People (Simplified)
+    '😀', '😎', '🥸', '🧐', '🧑‍💻', '🧑‍🎨', '🧑‍🚀', '🧑‍🚒', '👮', '🕵️', '🧙', '🧚', '🧛', '🧜', '🧝', '🧞', '🧟',
+    // Animals
+    '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦄',
+    // Objects & Misc
+    '⭐', '🌟', '🌈', '❤️', '💖', '✨', '🎮', '🎨', '🎭', '🚀', '💡', '💎'
+];
+
+// Replace generateAvatarData with generateEmojiAvatar
+function generateEmojiAvatar() {
+    return EMOJI_AVATARS[Math.floor(Math.random() * EMOJI_AVATARS.length)];
+}
+
 // --- Game Session Class ---
 class GameSession {
     // Constructor, initializePlayers, getPublicPlayerData (keep as before)
     constructor(gameId, humanSockets) { /* ... */ this.id = gameId; this.roomName = `game-${gameId}`; this.players = []; this.humanSockets = humanSockets; this.aiPlayers = []; this.currentRound = 0; this.currentPhase = null; this.currentAskerId = null; this.currentQuestion = null; this.answers = new Map(); this.votes = new Map(); this.activeTimers = { phaseTimeout: null }; console.log(`Creating GameSession ${this.id}`); this.initializePlayers(); }
-    initializePlayers() { /* ... */ usedNames.clear(); const hP=this.humanSockets.map(s=>({id:s.id,socket:s,isHuman:true,name:generateUniqueName(),avatarData:generateAvatarData(),status:'active'})); const aP=[]; for(let i=0;i<AI_PLAYER_COUNT;i++){aP.push({id:`ai-${this.id}-${i}`,socket:null,isHuman:false,name:generateUniqueName(),avatarData:generateAvatarData(),status:'active'});} this.aiPlayers=aP; let allP=[...hP,...aP]; shuffleArray(allP); this.players=allP; console.log(`Game ${this.id}: Initialized ${this.players.length}.`); this.players.forEach(p=>console.log(` - ID:${p.id}, N:${p.name}, H:${p.isHuman}`)); }
-    getPublicPlayerData() { return this.players.map(p=>({id:p.id,name:p.name,avatarData:p.avatarData,status:p.status})); }
+    initializePlayers() {
+        usedNames.clear();
+        const humanPlayerData = this.humanSockets.map(socket => ({
+            id: socket.id,
+            socket,
+            isHuman: true,
+            name: generateUniqueName(),
+            avatarEmoji: generateEmojiAvatar(),
+            status: 'active'
+        }));
+
+        const aiPlayerData = [];
+        for (let i = 0; i < AI_PLAYER_COUNT; i++) {
+            aiPlayerData.push({
+                id: `ai-${this.id}-${i}`,
+                socket: null,
+                isHuman: false,
+                name: generateUniqueName(),
+                avatarEmoji: generateEmojiAvatar(),
+                status: 'active'
+            });
+        }
+        this.aiPlayers = aiPlayerData;
+        let allPlayers = [...humanPlayerData, ...aiPlayerData];
+        shuffleArray(allPlayers);
+        this.players = allPlayers;
+    }
+    getPublicPlayerData() {
+        return this.players.map(p => ({
+            id: p.id,
+            name: p.name,
+            avatarEmoji: p.avatarEmoji,
+            status: p.status
+        }));
+    }
 
     // --- Game Loop Logic ---
     startGameLoop() { this.startNextRound(); }
