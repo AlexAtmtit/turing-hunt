@@ -143,20 +143,9 @@ function updateGameUI(players, displayData = {}) {
         if (currentPhase === 'REVEAL') {
             const results = displayData.results || {};
             const voteCount = results.voteCounts?.[player.id] || 0;
-            const votes = results.votes || {};
             
-            // Show vote count and voters
+            // Show only vote count
             let revealText = `Votes: ${voteCount}`;
-            const voters = [];
-            for (const voterId in votes) {
-                if (votes[voterId] === player.id) {
-                    const voter = players.find(p => p.id === voterId);
-                    voters.push(voter?.name || '???');
-                }
-            }
-            if (voters.length > 0) {
-                revealText += ` (from ${voters.join(', ')})`;
-            }
             detailsElement.textContent = revealText;
             detailsElement.style.display = 'block';
 
