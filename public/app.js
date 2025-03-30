@@ -92,31 +92,45 @@ function updateGameUI(players, displayData = {}) {
         const playerCard = document.createElement('div');
         playerCard.classList.add('player-card');
         playerCard.dataset.playerId = player.id;
-        playerCard.classList.remove('current-asker', 'eliminated-card'); // Reset dynamic classes
-
-        // Apply base status classes
+        
+        // Base status classes
         if (player.status !== 'active') { playerCard.classList.add('eliminated'); }
         if (player.id === myPlayerId) { playerCard.classList.add('is-me'); }
 
-        // Create elements (safer checks inside)
-        const avatarContainer = document.createElement('div'); avatarContainer.classList.add('avatar-container');
-        const avatarElement = renderEmojiAvatar(player.avatarEmoji); avatarContainer.appendChild(avatarElement);
+        // Create and append basic elements
+        const avatarContainer = document.createElement('div');
+        avatarContainer.classList.add('avatar-container');
+        const avatarElement = renderEmojiAvatar(player.avatarEmoji);
+        avatarContainer.appendChild(avatarElement);
 
-        const nameElement = document.createElement('span'); nameElement.classList.add('player-name'); nameElement.textContent = player.name || '???'; if (player.id === myPlayerId) nameElement.textContent += " (You)";
+        const nameElement = document.createElement('span');
+        nameElement.classList.add('player-name');
+        nameElement.textContent = player.name || '???';
+        if (player.id === myPlayerId) nameElement.textContent += " (You)";
 
-        const roleLabelElement = document.createElement('span'); roleLabelElement.classList.add('player-role-label'); roleLabelElement.style.display = 'none'; // Hide initially
+        const roleLabelElement = document.createElement('span');
+        roleLabelElement.classList.add('player-role-label');
+        roleLabelElement.style.display = 'none';
 
-        const thinkingSpan = document.createElement('span'); thinkingSpan.classList.add('thinking-indicator'); thinkingSpan.style.display = 'none';
+        const thinkingSpan = document.createElement('span');
+        thinkingSpan.classList.add('thinking-indicator');
+        thinkingSpan.style.display = 'none';
 
-        const detailsElement = document.createElement('p'); detailsElement.classList.add('player-details'); detailsElement.style.display = 'none';
+        const detailsElement = document.createElement('p');
+        detailsElement.classList.add('player-details');
+        detailsElement.style.display = 'none';
 
-        const voteButtonContainer = document.createElement('div'); voteButtonContainer.classList.add('vote-button-container'); voteButtonContainer.style.display = 'none';
+        const voteButtonContainer = document.createElement('div');
+        voteButtonContainer.classList.add('vote-button-container');
+        voteButtonContainer.style.display = 'none';
 
         // Append elements
-        playerCard.appendChild(avatarContainer); playerCard.appendChild(nameElement); playerCard.appendChild(roleLabelElement); playerCard.appendChild(thinkingSpan); playerCard.appendChild(detailsElement); playerCard.appendChild(voteButtonContainer);
-        playerList.appendChild(playerCard);
-
-        // --- Phase-specific content within the card ---
+        playerCard.appendChild(avatarContainer);
+        playerCard.appendChild(nameElement);
+        playerCard.appendChild(roleLabelElement);
+        playerCard.appendChild(thinkingSpan);
+        playerCard.appendChild(detailsElement);
+        playerCard.appendChild(voteButtonContainer);
 
         // Show persistent role label if eliminated
         if (player.status !== 'active' && eliminatedPlayerRoles.hasOwnProperty(player.id)) {
@@ -125,8 +139,35 @@ function updateGameUI(players, displayData = {}) {
             roleLabelElement.style.display = 'block';
         }
 
+        // Phase-specific content
+        if (currentPhase === 'REVEAL') {
+            const results = displayData.results || {};
+            const voteCount = results.voteCounts?.[player.id] || 0;
+            const votes = results.votes || {};
+            
+            // Show vote count and voters
+            let revealText = `Votes: ${voteCount}`;
+            const voters = [];
+            for (const voterId in votes) {
+                if (votes[voterId] === player.id) {
+                    const voter = players.find(p => p.id === voterId);
+                    voters.push(voter?.name || '???');
+                }
+            }
+            if (voters.length > 0) {
+                revealText += ` (from ${voters.join(', ')})`;
+            }
+            detailsElement.textContent = revealText;
+            detailsElement.style.display = 'block';
+
+            // Highlight if eliminated this round
+            const eliminatedInfo = results.eliminatedDetails?.find(e => e.id === player.id);
+            if (eliminatedInfo) {
+                playerCard.classList.add('eliminated-card');
+            }
+        }
         // Content for VOTING phase
-        if (currentPhase === 'VOTING') {
+        else if (currentPhase === 'VOTING') {
              detailsElement.classList.add('is-answer'); // Add answer style class
              const answerInfo = displayData.answers?.[player.id];
              if (answerInfo) { detailsElement.textContent = `"${answerInfo.answer}"`; }
@@ -143,32 +184,14 @@ function updateGameUI(players, displayData = {}) {
                   if (thinkingSpan && !hasVotedThisRound) { thinkingSpan.style.display = 'inline-block'; }
              }
         }
-        // Content for REVEAL phase
-        else if (currentPhase === 'REVEAL') {
-            detailsElement.classList.remove('is-answer'); // Remove answer style
-            const results = displayData.results || {};
-            const voteInfo = results.votes || {};
-            const voteCount = results.voteCounts?.[player.id] || 0;
-            let revealText = `Votes: ${voteCount}`;
-            const voters = [];
-            for (const voterId in voteInfo) { if (voteInfo[voterId] === player.id) { const voter = players.find(p => p.id === voterId); voters.push(voter?.name || '???'); } }
-            if (voters.length > 0) { revealText += ` (from ${voters.join(', ')})`; }
-            detailsElement.innerHTML = revealText;
-            detailsElement.style.display = 'block';
-
-            // Highlight if eliminated this round
-             const eliminatedInfo = results.eliminatedDetails?.find(e => e.id === playerId);
-             if (eliminatedInfo) {
-                 playerCard.classList.add('eliminated-card');
-                 // Role label is handled above by checking status
-             }
-        }
-         // Content for ASKING/ANSWERING phase (Thinking indicators)
-         else if (currentPhase === 'ASKING' && player.id === currentAskerId && player.id !== myPlayerId) {
+        // Content for ASKING/ANSWERING phase (Thinking indicators)
+        else if (currentPhase === 'ASKING' && player.id === currentAskerId && player.id !== myPlayerId) {
              if (thinkingSpan) thinkingSpan.style.display = 'inline-block';
-         } else if (currentPhase === 'ANSWERING' && player.status === 'active' && player.id !== currentAskerId) {
-              if (thinkingSpan) thinkingSpan.style.display = 'inline-block';
-         }
+        } else if (currentPhase === 'ANSWERING' && player.status === 'active' && player.id !== currentAskerId) {
+             if (thinkingSpan) thinkingSpan.style.display = 'inline-block';
+        }
+
+        playerList.appendChild(playerCard);
     });
 }
 
