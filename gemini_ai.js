@@ -293,7 +293,7 @@ async function getAIQuestion(playerProfile, assignedPromptTemplate) {
     const wordCount = countWords(generatedQuestion);
     const targetWordCount = parseInt(promptData.wordCount, 10);
     
-    if (Math.abs(wordCount - targetWordCount) > 2 || 
+    if (Math.abs(wordCount - targetWordCount) >= 2 || 
         generatedQuestion.length < 5 || 
         generatedQuestion.toLowerCase().includes("error") || 
         generatedQuestion.toLowerCase().includes("blocked")) {
@@ -344,7 +344,7 @@ async function getAIAnswer(playerProfile, question, assignedPromptTemplate) {
     const wordCount = countWords(generatedAnswer);
     const targetWordCount = parseInt(promptData.wordCount, 10);
     
-    if (Math.abs(wordCount - targetWordCount) > 2 || 
+    if (Math.abs(wordCount - targetWordCount) >= 2 || 
         generatedAnswer.length < 2 || 
         generatedAnswer.toLowerCase().includes("error") || 
         generatedAnswer.toLowerCase().includes("blocked")) {
