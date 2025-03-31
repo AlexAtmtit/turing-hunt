@@ -65,9 +65,12 @@
 }
 
 body {
-    font-family: var(--font-sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
     margin: 0;
     padding: 1rem;
+    font-family: var(--font-sans);
     background-color: var(--color-bg);
     color: var(--color-text);
     line-height: 1.6;
@@ -87,7 +90,7 @@ body {
     /* border: 1px solid var(--color-border); */
     display: flex;
     flex-direction: column;
-    min-height: calc(100vh - 4rem); /* Adjust based on body padding */
+    flex: 1;
 }
 
 /* --- Typography --- */
@@ -654,4 +657,55 @@ body.phase-reveal .phase-reveal {
     border: none;
     border-radius: 3px;
     cursor: pointer;
+}
+
+/* Footer Styles */
+.page-footer {
+  width: 100%;
+  padding: 1rem 0;
+  margin-top: auto; /* This pushes it to the bottom */
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--color-text-subtle);
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-bg);
+}
+
+.footer-content {
+  max-width: 700px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.social-links {
+  display: inline-block;
+  margin-left: 0.5rem;
+}
+
+.social-links a {
+  color: var(--color-accent);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.social-links a:hover {
+  color: var(--color-accent-hover);
+  text-decoration: underline;
+}
+
+/* Responsive adjustments for small screens */
+@media (max-width: 480px) {
+  .page-footer {
+    padding: 1rem;
+  }
+  
+  .footer-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .social-links {
+    margin-left: 0;
+  }
 }
