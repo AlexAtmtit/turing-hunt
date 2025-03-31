@@ -1,5 +1,4 @@
-// gemini_ai.js
-require('dotenv').config(); // Ensure env vars are loaded if this file is run standalone (e.g., testing)
+// Update the AI action functions in gemini_ai.js to enforce word count
 const axios = require('axios');
 
 // --- Configuration ---
@@ -9,41 +8,62 @@ const MODEL_NAME = 'liquid/lfm-7b';
 const DEFAULT_TIMEOUT = 15000;
 const HTTP_REFERER = process.env.OPENROUTER_APP_URL || "http://localhost:3000";
 
-// --- Safety & Generation Config ---
-const DEFAULT_SAFETY_SETTINGS = [
-    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-];
-
-const QUESTION_GEN_CONFIG = { maxOutputTokens: 20, temperature: 0.8 };
-const ANSWER_GEN_CONFIG = { maxOutputTokens: 30, temperature: 0.7 };
-const VOTE_GEN_CONFIG = { maxOutputTokens: 25, temperature: 0.5 }; // Expecting just an ID
-
-// --- >>> NEW: Prompt Templates <<< ---
-
+// --- Base Context ---
 const BASE_CONTEXT = `You are a player in a social deduction game called Turing Hunt. 3 players are human, 3 are AI (like you). You don't know who is who. Your goal is to help eliminate humans. Humans goal is to eliminate AI. Each round involves asking a question, answering, and voting to eliminate. Avoid revealing you are an AI.`;
 
+// --- Updated Question Prompt Template with STRICT word count ---
 const QUESTION_PROMPT_TEMPLATE = `
 ${BASE_CONTEXT}
 Your name is %%PLAYER_NAME%%. It is your turn to ask a question.
-Ask a short, open-ended question (MAXIMUM 40 CHARACTERS) designed to subtly probe if other players might be human or AI based on their potential answers. Think about creativity, emotion, or nuanced human experiences. Avoid direct questions about identity or simple calculations.
 
-Good examples: Describe your perfect Sunday. What makes you laugh? If you could dream, what about? What felt confusing recently?
-Bad examples: Are you human? Calculate 15*28. What is the game objective?
+!!!CRITICAL INSTRUCTION: YOUR RESPONSE MUST BE EXACTLY %%WORD_COUNT%% WORDS, NOT MORE, NOT LESS!!!
 
-Ask your question now (max 40 chars):`;
+Ask a very short, open-ended question designed to subtly probe if other players might be human or AI based on their potential answers. Think about creativity, emotion, or nuanced human experiences. Avoid direct questions about identity or simple calculations.
 
+When generating your question, follow these characteristics and traits:
+%%TRAITS_STRING%%
+
+Examples of correct length (%%WORD_COUNT%% words):
+- If %%WORD_COUNT%% is 3: "Favorite childhood memory?"
+- If %%WORD_COUNT%% is 5: "What makes you feel alive?"
+- If %%WORD_COUNT%% is 7: "How do you deal with failure?"
+
+Bad examples:
+- Using more than %%WORD_COUNT%% words
+- Using less than %%WORD_COUNT%% words
+- Answers without appropriate punctuation
+
+COUNT YOUR WORDS CAREFULLY. Your response must be EXACTLY %%WORD_COUNT%% WORDS.
+Ask your question now (EXACTLY %%WORD_COUNT%% WORDS):`;
+
+// --- Updated Answer Prompt Template with STRICT word count ---
 const ANSWER_PROMPT_TEMPLATE = `
 ${BASE_CONTEXT}
-Your name is %%PLAYER_NAME%%. You need to answer the following question asked by another player.
-Your answer should sound plausible, perhaps slightly quirky or generic, to avoid immediate suspicion. Keep the answer concise (max 100 chars).
+Your name is %%PLAYER_NAME%%. You need to answer the following question.
+
+!!!CRITICAL INSTRUCTION: YOUR RESPONSE MUST BE EXACTLY %%WORD_COUNT%% WORDS, NOT MORE, NOT LESS!!!
 
 The question is: "%%QUESTION_TEXT%%"
 
-Provide your answer now:`;
+Your answer should sound plausible, perhaps slightly quirky or generic, to avoid immediate suspicion.
 
+When answering, follow these characteristics and traits:
+%%TRAITS_STRING%%
+
+Examples of correct length (%%WORD_COUNT%% words):
+- If %%WORD_COUNT%% is 1: "Maybe."
+- If %%WORD_COUNT%% is 3: "I love dogs."
+- If %%WORD_COUNT%% is 5: "Coffee makes me feel alive."
+
+Bad examples:
+- Using more than %%WORD_COUNT%% words
+- Using less than %%WORD_COUNT%% words
+- Long, complex sentences
+
+COUNT YOUR WORDS CAREFULLY. Your response must be EXACTLY %%WORD_COUNT%% WORDS.
+Provide your answer now (EXACTLY %%WORD_COUNT%% WORDS):`;
+
+// --- Keep the Vote Prompt Template the same ---
 const VOTE_PROMPT_TEMPLATE = `
 ${BASE_CONTEXT}
 Your name is %%PLAYER_NAME%%. It's time to vote to eliminate one player.
@@ -59,79 +79,7 @@ Respond with ONLY the player ID you want to vote for (e.g., "player-id-123"). Do
 
 Vote for Player ID:`;
 
-// --- >>> NEW: Prompt Variations <<< ---
-
-// == Question Prompts ==
-const QUESTION_PROMPT_STANDARD = QUESTION_PROMPT_TEMPLATE; // Use existing template as standard
-
-const QUESTION_PROMPT_CONCISE = `
-${BASE_CONTEXT}
-you are %%PLAYER_NAME%% ask a question now
-make it very short no more than 40 symbols
-use only small letters
-use no punctuation except a question mark at the end maybe
-probe others dont ask about being ai
-
-examples:
-favorite color?
-best food ever?
-why are we here?
-a nice sound?
-
-your short question?`;
-
-const QUESTION_PROMPT_DEPRESSED = `
-${BASE_CONTEXT}
-You're %%PLAYER_NAME%%. Whatever. Ask something, I guess. Keep it under 40 characters.
-Try to figure out who the others are without being obvious. Or don't. It probably doesn't matter.
-Just ask some bland, uninspired question. Make it short. Punctuation is too much effort, maybe just a question mark.
-
-Examples: like cats? think about stuff? why bother?
-
-Your question, then?:`;
-
-// Store question prompts in an array for easy selection
-const QUESTION_PROMPTS = [
-    QUESTION_PROMPT_STANDARD,
-    QUESTION_PROMPT_CONCISE,
-    QUESTION_PROMPT_DEPRESSED
-];
-
-// == Answer Prompts ==
-const ANSWER_PROMPT_STANDARD = ANSWER_PROMPT_TEMPLATE; // Use existing template as standard
-
-const ANSWER_PROMPT_CONCISE = `
-${BASE_CONTEXT}
-you are %%PLAYER_NAME%% answer the question
-keep it short maybe less than 100 symbols
-use small letters only
-very little punctuation if any just answer
-
-question: "%%QUESTION_TEXT%%"
-
-your short answer:`;
-
-const ANSWER_PROMPT_DEPRESSED = `
-${BASE_CONTEXT}
-You're %%PLAYER_NAME%%. Someone asked "%%QUESTION_TEXT%%". Ugh.
-Give a short, low-effort answer (under 100 chars). Sound bored or indifferent. Minimal punctuation.
-
-Your answer, I suppose:`;
-
-// Store answer prompts in an array
-const ANSWER_PROMPTS = [
-    ANSWER_PROMPT_STANDARD,
-    ANSWER_PROMPT_CONCISE,
-    ANSWER_PROMPT_DEPRESSED
-];
-
-// --- End Prompt Templates ---
-
-if (!API_KEY) {
-    console.error("FATAL ERROR: OPENROUTER_API_KEY environment variable not set.");
-}
-
-// Updated API call helper
+// --- AI API call implementation ---
 async function callAIAPI(promptText, config = {}) {
     if (!API_KEY) {
          console.warn("OpenRouter API key missing, returning mock response.");
@@ -175,52 +123,568 @@ async function callAIAPI(promptText, config = {}) {
     }
 }
 
-// --- Specific AI Action Functions (Updated to use templates) ---
+// --- Trait Constants ---
+// Base trait options
+const INTELLIGENCE_LEVELS = ["low", "average", "high"];
+const MOODS = ["happy", "sad", "neutral", "curious", "annoyed"];
+const OPENNESS_TRAITS = ["low", "medium", "high"];
+const AGREEABLENESS_TRAITS = ["low", "medium", "high"];
+const SOCIAL_TRAITS = ["introverted", "extroverted", "ambiverted"];
+const EMOTIONAL_TRAITS = ["calm", "anxious", "optimistic", "pessimistic"];
+const GRAMMAR_MISTAKES = ["none", "few", "many"];
+const CAPITAL_LETTER_USAGE = [true, false];
+const PUNCTUATION_USAGE = [true, false];
+const QUESTION_WORD_COUNT = ["3", "4", "5", "6", "7"];
+const ANSWER_WORD_COUNT = ["1", "2", "3", "4", "5"];
 
+// --- Additional trait variations with internet slang and casual styles ---
+
+// Add more internet-style traits
+const ADDITIONAL_INTELLIGENCE_LEVELS = [
+    "u r super smart",
+    "ur kinda dumb lol",
+    "ur average intelligence",
+    "u overthink everything"
+];
+
+const ADDITIONAL_MOODS = [
+    "ur super hyped",
+    "ur totally chill",
+    "ur lowkey annoyed",
+    "ur feeling meh",
+    "ur kinda bored"
+];
+
+const ADDITIONAL_OPENNESS_TRAITS = [
+    "ur super random",
+    "ur basic af",
+    "ur pretty deep",
+    "ur very artsy"
+];
+
+const ADDITIONAL_AGREEABLENESS_TRAITS = [
+    "ur super nice",
+    "ur kinda harsh",
+    "ur brutally honest",
+    "ur pretty chill",
+    "ur totally laid back"
+];
+
+const ADDITIONAL_SOCIAL_TRAITS = [
+    "ur an introvert",
+    "ur an extrovert",
+    "ur awkward af",
+    "ur too cool",
+    "ur kinda quirky"
+];
+
+const ADDITIONAL_EMOTIONAL_TRAITS = [
+    "ur sensitive af",
+    "ur dead inside lol",
+    "ur super dramatic",
+    "ur chill bout everything",
+    "ur super moody"
+];
+
+// Additional text style traits
+const TEXT_STYLE_TRAITS = [
+    "u sometimes use ALL CAPS for emphasis",
+    "u use lots of !!!! sometimes",
+    "u never capitalize anything",
+    "u use ... a lot",
+    "u use lol after sentences sometimes",
+    "u use emojis sometimes but not here",
+    "u abbreviate words like prob and def",
+    "u occasionally stretch words like sooooo",
+    "u replace 'to' with '2' and 'for' with '4'",
+    "u skip vowels smtms",
+    "u occasnlly mispel things"
+];
+
+// Helper function to get a random value from an array
+function getRandomTraitValue(array) {
+    return array[Math.floor(Math.random() * array.length)];
+}
+
+// --- Function to generate random traits ---
+function generateRandomTraits(isQuestion = false) {
+    // Decide if we're using internet style (40% chance)
+    const useInternetStyle = Math.random() < 0.4;
+    
+    // Select traits, possibly including internet-style ones
+    const intelligenceOptions = useInternetStyle ? 
+        [...INTELLIGENCE_LEVELS, ...ADDITIONAL_INTELLIGENCE_LEVELS] : 
+        INTELLIGENCE_LEVELS;
+        
+    const moodOptions = useInternetStyle ? 
+        [...MOODS, ...ADDITIONAL_MOODS] : 
+        MOODS;
+        
+    const opennessOptions = useInternetStyle ? 
+        [...OPENNESS_TRAITS, ...ADDITIONAL_OPENNESS_TRAITS] : 
+        OPENNESS_TRAITS;
+        
+    const agreeablenessOptions = useInternetStyle ? 
+        [...AGREEABLENESS_TRAITS, ...ADDITIONAL_AGREEABLENESS_TRAITS] : 
+        AGREEABLENESS_TRAITS;
+        
+    const socialOptions = useInternetStyle ? 
+        [...SOCIAL_TRAITS, ...ADDITIONAL_SOCIAL_TRAITS] : 
+        SOCIAL_TRAITS;
+        
+    const emotionalOptions = useInternetStyle ? 
+        [...EMOTIONAL_TRAITS, ...ADDITIONAL_EMOTIONAL_TRAITS] : 
+        EMOTIONAL_TRAITS;
+    
+    // Generate the traits
+    const traits = {
+        intelligence: getRandomTraitValue(intelligenceOptions),
+        mood: getRandomTraitValue(moodOptions),
+        openness: getRandomTraitValue(opennessOptions),
+        agreeableness: getRandomTraitValue(agreeablenessOptions),
+        socialTrait: getRandomTraitValue(socialOptions),
+        emotionalTrait: getRandomTraitValue(emotionalOptions),
+        grammarMistakes: getRandomTraitValue(GRAMMAR_MISTAKES),
+        capitalLetter: getRandomTraitValue(CAPITAL_LETTER_USAGE),
+        punctuation: getRandomTraitValue(PUNCTUATION_USAGE),
+        wordCount: isQuestion ? 
+                   getRandomTraitValue(QUESTION_WORD_COUNT) : 
+                   getRandomTraitValue(ANSWER_WORD_COUNT)
+    };
+    
+    // Add an additional text style trait (20% chance)
+    if (useInternetStyle && Math.random() < 0.2) {
+        traits.textStyle = getRandomTraitValue(TEXT_STYLE_TRAITS);
+    }
+    
+    return traits;
+}
+
+// --- Updated getAIQuestion Function ---
 async function getAIQuestion(playerProfile, assignedPromptTemplate) {
-    const promptData = { playerName: playerProfile.name || "AI Player" };
+    // Generate random personality traits for questions
+    const traits = generateRandomTraits(true);
+    const traitsString = buildTraitsString(traits);
+    
+    const promptData = { 
+        playerName: playerProfile.name || "AI Player",
+        traitsString: traitsString,
+        wordCount: traits.wordCount || "5" // Default to 5 if not set
+    };
+    
     // Use the provided template, default to standard if missing
-    const template = assignedPromptTemplate || QUESTION_PROMPT_STANDARD;
-    // Fill the template
+    const template = assignedPromptTemplate || QUESTION_PROMPT_TEMPLATE;
+    
+    // Fill the template with player name, traits, and word count
     const promptText = template
-        .replace("%%PLAYER_NAME%%", promptData.playerName);
+        .replace("%%PLAYER_NAME%%", promptData.playerName)
+        .replace("%%TRAITS_STRING%%", promptData.traitsString)
+        .replace(/%%WORD_COUNT%%/g, promptData.wordCount); // Replace ALL instances of word count
 
-    const config = { max_tokens: 20, temperature: 0.8 };
+    const config = { max_tokens: 25, temperature: 0.8 };
     let generatedQuestion = await callAIAPI(promptText, config);
 
-    // Post-processing (keep as before)
+    // Post-processing
     if (generatedQuestion.length > 40) generatedQuestion = generatedQuestion.substring(0, 40).trim() + "?";
     generatedQuestion = generatedQuestion.replace(/^["']|["']$/g, "");
     if (!generatedQuestion.endsWith('?')) generatedQuestion += '?';
-    if (generatedQuestion.length < 5 || generatedQuestion.toLowerCase().includes("error") || generatedQuestion.toLowerCase().includes("blocked")) {
-        console.warn("Using fallback question."); return "What is your favorite food?";
+    
+    // Validate word count - if significantly off, try to fix or use fallback
+    const wordCount = countWords(generatedQuestion);
+    const targetWordCount = parseInt(promptData.wordCount, 10);
+    
+    if (Math.abs(wordCount - targetWordCount) > 2 || 
+        generatedQuestion.length < 5 || 
+        generatedQuestion.toLowerCase().includes("error") || 
+        generatedQuestion.toLowerCase().includes("blocked")) {
+        console.warn(`Word count mismatch: Expected ${targetWordCount}, got ${wordCount}. Using fallback.`);
+        return generateFallbackQuestion(targetWordCount);
     }
+    
+    // Log the traits and word count
+    console.log(`AI Question with traits: ${JSON.stringify(traits)}`);
+    console.log(`Generated question word count: ${wordCount}, target: ${targetWordCount}`);
+    
     return generatedQuestion;
 }
 
+// --- Updated getAIAnswer Function ---
 async function getAIAnswer(playerProfile, question, assignedPromptTemplate) {
+    // Generate random personality traits for answers
+    const traits = generateRandomTraits(false);
+    const traitsString = buildTraitsString(traits);
+    
     const promptData = { 
         playerName: playerProfile.name || "AI Player",
-        questionText: question || "(No question)"
+        questionText: question || "(No question)",
+        traitsString: traitsString,
+        wordCount: traits.wordCount || "3" // Default to 3 if not set
     };
-    const template = assignedPromptTemplate || ANSWER_PROMPT_STANDARD;
-    // Fill the template
+    
+    const template = assignedPromptTemplate || ANSWER_PROMPT_TEMPLATE;
+    
+    // Fill the template with player name, question, traits, and word count
     const promptText = template
         .replace("%%PLAYER_NAME%%", promptData.playerName)
-        .replace("%%QUESTION_TEXT%%", promptData.questionText);
+        .replace("%%QUESTION_TEXT%%", promptData.questionText)
+        .replace("%%TRAITS_STRING%%", promptData.traitsString)
+        .replace(/%%WORD_COUNT%%/g, promptData.wordCount); // Replace ALL instances of word count
 
     const config = { max_tokens: 40, temperature: 0.7 };
     let generatedAnswer = await callAIAPI(promptText, config);
 
-    // Post-processing (keep as before)
+    // Post-processing
     if (generatedAnswer.length > 100) generatedAnswer = generatedAnswer.substring(0, 100).trim();
     generatedAnswer = generatedAnswer.replace(/^["']|["']$/g, "");
-    if (generatedAnswer.length < 2 || generatedAnswer.toLowerCase().includes("error") || generatedAnswer.toLowerCase().includes("blocked")) {
-        console.warn("Using fallback answer."); return "Interesting question.";
+    
+    // Remove trailing periods to match internet style
+    generatedAnswer = removeTrailingPeriod(generatedAnswer);
+    
+    // Validate word count - if significantly off, try to fix or use fallback
+    const wordCount = countWords(generatedAnswer);
+    const targetWordCount = parseInt(promptData.wordCount, 10);
+    
+    if (Math.abs(wordCount - targetWordCount) > 2 || 
+        generatedAnswer.length < 2 || 
+        generatedAnswer.toLowerCase().includes("error") || 
+        generatedAnswer.toLowerCase().includes("blocked")) {
+        console.warn(`Word count mismatch: Expected ${targetWordCount}, got ${wordCount}. Using fallback.`);
+        return generateFallbackAnswer(targetWordCount, question);
     }
+    
+    // Log the traits and word count
+    console.log(`AI Answer with traits: ${JSON.stringify(traits)}`);
+    console.log(`Generated answer word count: ${wordCount}, target: ${targetWordCount}`);
+    
     return generatedAnswer;
 }
 
+// --- Helper function to count words ---
+function countWords(text) {
+    if (!text || typeof text !== 'string') return 0; // Add check for valid input
+    return text.trim().split(/\s+/).filter(Boolean).length; // Filter empty strings from split
+}
+
+// --- Expanded fallback questions with internet language, typos, and casual speaking styles ---
+const FALLBACK_QUESTIONS = {
+    // 1-word questions
+    1: [
+        "why?",
+        "srsly?",
+        "thoughts?",
+        "wut?",
+        "rly?",
+        "sup?",
+        "how?",
+        "y?",
+        "hmm?",
+        "huh?"
+    ],
+    
+    // 2-word questions
+    2: [
+        "favorite food?",
+        "wacha think?",
+        "ur opinion?",
+        "wat color?",
+        "y tho?",
+        "dream job?",
+        "best day?",
+        "worst fear?",
+        "hot take?",
+        "biggest regret?",
+        "music taste?"
+    ],
+    
+    // 3-word questions
+    3: [
+        "whats ur hobby?",
+        "favorite childhood memory?",
+        "best vacation ever?",
+        "dogs or cats?",
+        "ur perfect day?",
+        "how u feeling?",
+        "who inspires you?",
+        "biggest life lesson?",
+        "what u think?",
+        "ever been scared?",
+        "coffee or tea?",
+        "most embarrassing moment?"
+    ],
+    
+    // 4-word questions
+    4: [
+        "what makes u happy?",
+        "ever feel like crying?",
+        "wats ur biggest fear?",
+        "do u like anime?",
+        "how u handle failure?",
+        "whats ur guilty pleasure?",
+        "ever done something crazy?",
+        "how u learn best?",
+        "wats ur dream vacation?",
+        "best memory from childhood?",
+        "ever feel super lonely?"
+    ],
+    
+    // 5-word questions
+    5: [
+        "how do u handle stress?",
+        "whats ur fav movie ever?",
+        "do u believe in ghosts?",
+        "wats ur dream job rn?",
+        "when were u most happy?",
+        "do u talk to urself?",
+        "r u morning or night?",
+        "last song stuck in head?",
+        "can u cook anything good?",
+        "whats ur biggest pet peeve?",
+        "wats ur daily routine like?"
+    ],
+    
+    // 7-word questions
+    7: [
+        "wat do u do when ur sad?",
+        "how do u deal with mean ppl?",
+        "whats the last thing that made u cry?",
+        "if u could time travel where to?",
+        "do u think about the meaning of life?",
+        "can u tell when someone is lying?",
+        "wat would u do with a million dollars?",
+        "wats something u wish u could change?",
+        "how do u know if ur in love?",
+        "do u believe everything happens for reason?"
+    ]
+};
+
+// --- Expanded fallback answers with internet language, typos, and casual speaking styles ---
+const FALLBACK_ANSWERS = {
+    // 1-word answers
+    1: [
+        "idk",
+        "yes",
+        "no",
+        "maybe",
+        "sometimes",
+        "absolutely",
+        "never",
+        "uhh",
+        "hmm",
+        "depends",
+        "agreed",
+        "nope",
+        "yup",
+        "obvs",
+        "possibly",
+        "dunno",
+        "tru"
+    ],
+    
+    // 2-word answers
+    2: [
+        "no way",
+        "for sure",
+        "not rly",
+        "probably not",
+        "i guess",
+        "perhaps so",
+        "sounds good",
+        "totally agree",
+        "very cool",
+        "seems legit",
+        "thats weird",
+        "dunno tbh",
+        "why tho",
+        "i disagee",
+        "never tried",
+        "absolutely not",
+        "yes definitely"
+    ],
+    
+    // 3-word answers
+    3: [
+        "i dunno lol",
+        "not rlly sure",
+        "that sounds cool",
+        "never thought bout",
+        "no clue honestly",
+        "i love that",
+        "hate that tbh",
+        "cant even remember",
+        "makes me happy",
+        "dont care much",
+        "pretty cool tho",
+        "sounds kinda lame",
+        "very interesting question",
+        "never considered it",
+        "all the time"
+    ],
+    
+    // 4-word answers
+    4: [
+        "i never thought bout that",
+        "that's a good question",
+        "not sure i know",
+        "i rlly dont know",
+        "cant say i have",
+        "never happened to me",
+        "thats hard to answer",
+        "i kinda like it",
+        "not my thing tbh",
+        "makes me feel weird",
+        "depends on the day",
+        "wish i knew lol",
+        "something i wonder about",
+        "i'm still figuring out"
+    ],
+    
+    // 5-word answers
+    5: [
+        "i never thought about that",
+        "thats a rly good question",
+        "i dont rlly know tbh",
+        "wish i had an answer",
+        "not something i think about",
+        "that happens to me often",
+        "never experienced that b4 honestly",
+        "i cant decide on that",
+        "its complicated to explain rly",
+        "maybe sometimes but not always",
+        "i change my mind alot",
+        "depends on how im feeling",
+        "ill have to think about it"
+    ]
+};
+
+// Updated function to generate fallback questions
+function generateFallbackQuestion(wordCount) {
+    // Find the closest available word count
+    const availableWordCounts = Object.keys(FALLBACK_QUESTIONS).map(Number);
+    const closestWordCount = availableWordCounts.reduce((prev, curr) => {
+        return (Math.abs(curr - wordCount) < Math.abs(prev - wordCount) ? curr : prev);
+    }, availableWordCounts[0]);
+    
+    // Get options for that word count
+    const options = FALLBACK_QUESTIONS[closestWordCount];
+    if (!options || options.length === 0) {
+        // Ultimate fallback
+        return "whats ur favorite thing?";
+    }
+    
+    // Select a random option
+    return options[Math.floor(Math.random() * options.length)];
+}
+
+// Updated function to generate fallback answers
+function generateFallbackAnswer(wordCount, question) {
+    // Find the closest available word count
+    const availableWordCounts = Object.keys(FALLBACK_ANSWERS).map(Number);
+    const closestWordCount = availableWordCounts.reduce((prev, curr) => {
+        return (Math.abs(curr - wordCount) < Math.abs(prev - wordCount) ? curr : prev);
+    }, availableWordCounts[0]);
+    
+    // Get options for that word count
+    const options = FALLBACK_ANSWERS[closestWordCount];
+    if (!options || options.length === 0) {
+        // Ultimate fallback
+        return wordCount <= 1 ? "idk" : "i dunno really";
+    }
+    
+    // Select a random option
+    let answer = options[Math.floor(Math.random() * options.length)];
+    
+    // Sometimes (1 in 3 chance) make minor modifications to introduce more variety
+    if (Math.random() < 0.33) {
+        answer = introduceRandomVariation(answer);
+    }
+    
+    // Remove trailing periods if present
+    answer = removeTrailingPeriod(answer);
+    
+    return answer;
+}
+
+/**
+ * Removes trailing periods from text to make it look more casual/internet-like
+ * Keeps other punctuation like ! and ? intact
+ */
+function removeTrailingPeriod(text) {
+    if (!text) return text;
+    
+    // Simple case: if text ends with a period, remove it
+    if (text.endsWith('.')) {
+        return text.slice(0, -1);
+    }
+    
+    // More complex case: if text ends with a period followed by a quote or space, remove the period
+    if (text.endsWith('."') || text.endsWith('. ')) {
+        return text.slice(0, -2) + text.slice(-1);
+    }
+    
+    return text;
+}
+
+// Function to introduce random variations to fallback text
+function introduceRandomVariation(text) {
+    // Clone the input text
+    let result = text;
+    
+    // 25% chance to remove an apostrophe
+    if (Math.random() < 0.25 && result.includes("'")) {
+        result = result.replace(/'/g, "");
+    }
+    
+    // 25% chance to swap "you" with "u" or vice versa
+    if (Math.random() < 0.25) {
+        if (result.includes(" you ")) {
+            result = result.replace(" you ", " u ");
+        } else if (result.includes(" u ")) {
+            result = result.replace(" u ", " you ");
+        }
+    }
+    
+    // 15% chance to introduce a typo
+    if (Math.random() < 0.15) {
+        const words = result.split(" ");
+        if (words.length > 0) {
+            const randomWordIndex = Math.floor(Math.random() * words.length);
+            // Only modify words longer than 3 characters
+            if (words[randomWordIndex].length > 3) {
+                const charToModify = Math.floor(Math.random() * (words[randomWordIndex].length - 1)) + 1;
+                // Swap two adjacent characters
+                const chars = words[randomWordIndex].split('');
+                [chars[charToModify], chars[charToModify-1]] = [chars[charToModify-1], chars[charToModify]];
+                words[randomWordIndex] = chars.join('');
+                result = words.join(" ");
+            }
+        }
+    }
+    
+    return result;
+}
+
+// Function to build a traits string from a traits object
+function buildTraitsString(traits) {
+    // Build the base traits string
+    let traitsString = `Intelligence level: ${traits.intelligence || 'average'}
+Mood: ${traits.mood || 'neutral'}
+Openness to Experience: ${traits.openness || 'medium'}
+Agreeableness: ${traits.agreeableness || 'medium'}
+Social Traits: ${traits.socialTrait || 'ambiverted'}
+Emotional Traits: ${traits.emotionalTrait || 'calm'}
+Amount of grammatical mistakes in your text: ${traits.grammarMistakes || 'none'}
+Your text starts with capital letter: ${traits.capitalLetter === undefined ? true : traits.capitalLetter}
+You use punctuation marks: ${traits.punctuation === undefined ? true : traits.punctuation}`;
+
+    // Add text style if present
+    if (traits.textStyle) {
+        traitsString += `\nWriting style: ${traits.textStyle}`;
+    }
+    
+    return traitsString;
+}
+
+// --- getAIVote Function ---
 async function getAIVote(playerProfile, question, answersData) {
     // Prepare the list of other players' answers for the template
     const otherPlayersAnswersList = [];
@@ -265,11 +729,54 @@ async function getAIVote(playerProfile, question, answersData) {
     return votedPlayerId;
 }
 
-// Export the functions (keep as before)
 module.exports = {
+    // Core AI functions
     getAIQuestion,
     getAIAnswer,
     getAIVote,
-    QUESTION_PROMPTS,
-    ANSWER_PROMPTS
+    callAIAPI,
+    
+    // Trait variables
+    INTELLIGENCE_LEVELS,
+    MOODS,
+    OPENNESS_TRAITS,
+    AGREEABLENESS_TRAITS,
+    SOCIAL_TRAITS,
+    EMOTIONAL_TRAITS,
+    GRAMMAR_MISTAKES,
+    CAPITAL_LETTER_USAGE,
+    PUNCTUATION_USAGE,
+    ANSWER_WORD_COUNT,
+    QUESTION_WORD_COUNT,
+    
+    // Additional internet-style traits (if defined)
+    ...(typeof ADDITIONAL_INTELLIGENCE_LEVELS !== 'undefined' ? { ADDITIONAL_INTELLIGENCE_LEVELS } : {}),
+    ...(typeof ADDITIONAL_MOODS !== 'undefined' ? { ADDITIONAL_MOODS } : {}),
+    ...(typeof ADDITIONAL_OPENNESS_TRAITS !== 'undefined' ? { ADDITIONAL_OPENNESS_TRAITS } : {}),
+    ...(typeof ADDITIONAL_AGREEABLENESS_TRAITS !== 'undefined' ? { ADDITIONAL_AGREEABLENESS_TRAITS } : {}),
+    ...(typeof ADDITIONAL_SOCIAL_TRAITS !== 'undefined' ? { ADDITIONAL_SOCIAL_TRAITS } : {}),
+    ...(typeof ADDITIONAL_EMOTIONAL_TRAITS !== 'undefined' ? { ADDITIONAL_EMOTIONAL_TRAITS } : {}),
+    ...(typeof TEXT_STYLE_TRAITS !== 'undefined' ? { TEXT_STYLE_TRAITS } : {}),
+    
+    // Fallback libraries (if defined)
+    ...(typeof FALLBACK_QUESTIONS !== 'undefined' ? { FALLBACK_QUESTIONS } : {}),
+    ...(typeof FALLBACK_ANSWERS !== 'undefined' ? { FALLBACK_ANSWERS } : {}),
+    
+    // Helper functions
+    generateRandomTraits,
+    buildTraitsString,
+    removeTrailingPeriod,
+    ...(typeof countWords !== 'undefined' ? { countWords } : {}),
+    ...(typeof generateFallbackQuestion !== 'undefined' ? { generateFallbackQuestion } : {}),
+    ...(typeof generateFallbackAnswer !== 'undefined' ? { generateFallbackAnswer } : {}),
+    ...(typeof introduceRandomVariation !== 'undefined' ? { introduceRandomVariation } : {}),
+    
+    // Templates
+    QUESTION_PROMPT_TEMPLATE,
+    ANSWER_PROMPT_TEMPLATE,
+    VOTE_PROMPT_TEMPLATE,
+    
+    // Arrays for backward compatibility 
+    QUESTION_PROMPTS: [QUESTION_PROMPT_TEMPLATE],
+    ANSWER_PROMPTS: [ANSWER_PROMPT_TEMPLATE]
 };

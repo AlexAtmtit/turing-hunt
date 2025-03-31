@@ -497,32 +497,42 @@ a[href="https://jam.pieter.com"] { z-index: 10000 !important; }
     transition: all 0.3s ease;
 }
 
-/* Update phase indicator active text color */
+/* Phase indicator styles - make the vote button red when active */
+.phase-vote.active {
+    background-color: var(--color-status-vote) !important; /* Red color for voting phase */
+    color: white !important; /* Ensure text is white for better contrast */
+    font-weight: 600;
+    box-shadow: 0 0 5px rgba(239, 68, 68, 0.5); /* Optional: add a subtle glow */
+}
 
-/* Change the text color to black for all active phases */
+/* If you need to adjust the hover state too */
+.phase-vote:hover {
+    background-color: rgba(239, 68, 68, 0.1); /* Light red background on hover */
+}
+
+/* Ensure the phase-step active class properly highlights all phases */
 .phase-step.active {
     background-color: var(--color-accent);
-    color: black; /* Changed from var(--color-accent-text) to black */
-    font-weight: 600; /* Slightly bolder for better visibility */
-    text-shadow: 0px 0px 1px rgba(255, 255, 255, 0.5); /* Optional: Add a subtle text shadow */
+    color: white;
+    font-weight: 600;
 }
 
-/* Make sure each phase background is still distinct */
-.phase-ask.active {
-    background-color: var(--color-status-ask);
-    color: black;
+/* Define specific colors for each phase when active */
+.phase-ask.active { 
+    background-color: var(--color-status-ask); /* Amber for asking */
+    color: black; 
 }
-.phase-answer.active {
-    background-color: var(--color-accent);
-    color: black;
+.phase-answer.active { 
+    background-color: var(--color-accent); /* Blue for answering */
+    color: white; 
 }
-.phase-vote.active {
-    background-color: var(--color-status-vote);
-    color: white; /* Keep white for the red voting background */
+.phase-vote.active { 
+    background-color: var(--color-status-vote); /* Red for voting */
+    color: white; 
 }
-.phase-reveal.active {
-    background-color: var(--color-text-subtle);
-    color: black;
+.phase-reveal.active { 
+    background-color: var(--color-text-subtle); /* Gray for reveal */
+    color: white; 
 }
 
 /* Emergency Refresh Button */
