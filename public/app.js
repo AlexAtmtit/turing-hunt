@@ -785,13 +785,19 @@ function createPlayerCard(player, displayData = {}) {
     return playerCard;
 }
 
-// Fix 5: Separate phase-specific player card updates into a function
+// Enhance the updatePlayerCardForPhase function to better show thinking state
 function updatePlayerCardForPhase(player, playerCard, displayData = {}) {
     try {
         const thinkingSpan = playerCard.querySelector('.thinking-indicator');
         const detailsElement = playerCard.querySelector('.player-details');
         const voteButtonContainer = playerCard.querySelector('.vote-button-container');
         const roleLabelElement = playerCard.querySelector('.player-role-label');
+
+        // Reset styles by default
+        playerCard.classList.remove('active-thinking');
+        if (thinkingSpan) thinkingSpan.style.display = 'none'; // Hide thinking indicator by default
+        if (detailsElement) detailsElement.style.display = 'none'; // Hide details by default
+        if (voteButtonContainer) voteButtonContainer.style.display = 'none'; // Hide vote button by default
 
         // REVEAL phase
         if (currentPhase === 'REVEAL') {
@@ -815,7 +821,7 @@ function updatePlayerCardForPhase(player, playerCard, displayData = {}) {
         // VOTING phase
         else if (currentPhase === 'VOTING') {
             if (detailsElement) {
-                detailsElement.classList.add('is-answer');
+                detailsElement.classList.add('is-answer'); // Keep this class for styling
                 const answerInfo = displayData.answers?.[player.id];
                 if (answerInfo) {
                     detailsElement.textContent = `"${answerInfo.answer}"`;
@@ -828,7 +834,7 @@ function updatePlayerCardForPhase(player, playerCard, displayData = {}) {
             }
 
             if (player.status === 'active' && voteButtonContainer) {
-                voteButtonContainer.innerHTML = '';
+                voteButtonContainer.innerHTML = ''; // Clear previous buttons
                 voteButtonContainer.style.display = 'block';
 
                 const voteButton = document.createElement('button');
@@ -838,19 +844,32 @@ function updatePlayerCardForPhase(player, playerCard, displayData = {}) {
                 voteButton.disabled = hasVotedThisRound || player.id === myPlayerId;
                 voteButtonContainer.appendChild(voteButton);
 
+                // Show thinking indicator for active players who haven't voted (and aren't you)
                 if (thinkingSpan && !hasVotedThisRound && player.id !== myPlayerId) {
                     thinkingSpan.style.display = 'inline-block';
+                    playerCard.classList.add('active-thinking');
                 }
             }
         }
         // ASKING phase
         else if (currentPhase === 'ASKING' && player.id === currentAskerId && player.id !== myPlayerId) {
-            if (thinkingSpan) thinkingSpan.style.display = 'inline-block';
+            // Show thinking indicator for the AI asker
+            if (thinkingSpan) {
+                thinkingSpan.style.display = 'inline-block';
+                playerCard.classList.add('active-thinking');
+            }
         }
         // ANSWERING phase
         else if (currentPhase === 'ANSWERING' && player.status === 'active' && player.id !== currentAskerId) {
-            if (thinkingSpan) thinkingSpan.style.display = 'inline-block';
+            // Show thinking indicator for active players who need to answer (and aren't the asker)
+            if (thinkingSpan) {
+                thinkingSpan.style.display = 'inline-block';
+                playerCard.classList.add('active-thinking');
+            }
         }
+        // Default state (e.g., waiting, game over, etc.) - ensure indicators are hidden
+        // This is handled by the reset at the beginning of the function
+
     } catch (error) {
         console.error(`Error updating player card phase UI for ${player.id}:`, error);
     }
@@ -1281,36 +1300,44 @@ function updateInputAreaVisibility(data) {
     }
 }
 
-// 2. Make UI more resilient to race conditions with phase changes
+// Update the updatePhaseUI function to better indicate "thinking" state
 function updatePhaseUI(data) {
-    // This function consolidates all UI updates for a phase change
-    // to ensure they happen together
-
     try {
         // Execute all UI updates within a single call stack to prevent partial updates
         setTimeout(() => {
             // Update status message
             updateStatusMessage(data);
-
+            
             // Update question display
             updateQuestionDisplay(data);
-
+            
+            // If we're in ASKING phase with AI asker, add thinking animation
+            if (data.phase === 'ASKING' && data.askerId && data.askerId !== myPlayerId) {
+                const askerCard = document.querySelector(`.player-card[data-player-id="${data.askerId}"]`);
+                if (askerCard) {
+                    // Show thinking indicator
+                    const thinkingSpan = askerCard.querySelector('.thinking-indicator');
+                    if (thinkingSpan) thinkingSpan.style.display = 'inline-block';
+                    
+                    // Add active-thinking class to the card
+                    askerCard.classList.add('active-thinking');
+                }
+            }
+            
             // Update player list with current data
-            // Use stored state for players, but potentially new answers/results from data
             updateGameUI(currentPlayers, {
                 answers: currentAnswers || data.answers || {},
                 results: currentResults || data.results || {}
             });
-
+            
             // Update input area visibility
             updateInputAreaVisibility(data);
-
+            
             // Update phase indicator
             updatePhaseIndicator(data.phase);
-
+            
             debugLog('Phase UI update complete', { phase: data.phase });
-            lastUIUpdate = Date.now(); // Mark update time after UI changes are applied
-        }, 10); // Small delay to ensure it runs after current stack clears
+        }, 10);
     } catch (error) {
         console.error('Error in updatePhaseUI:', error);
         // Try a more basic update as fallback

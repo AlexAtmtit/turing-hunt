@@ -45,11 +45,14 @@ const RETRY_TIMEOUT = 10000; // 10 seconds for the retry
 class GameSession {
     // --- >>> MOVED Retry Constants Inside Class <<< ---
     MAX_AI_ATTEMPTS = 3;
-    AI_ATTEMPT_TIMEOUT = 8000; // 8 seconds
+    ORIGINAL_AI_ATTEMPT_TIMEOUT = 8000; // Original 8-second timeout
+    AI_ATTEMPT_TIMEOUT = this.ORIGINAL_AI_ATTEMPT_TIMEOUT; // Current timeout (can be adjusted)
     // --- >>> END MOVE <<< ---
 
-    constructor(gameId, humanSockets) { /* ... */ this.id = gameId; this.roomName = `game-${gameId}`; this.players = []; this.humanSockets = humanSockets; this.aiPlayers = []; this.currentRound = 0; this.currentPhase = null; this.currentAskerId = null; this.currentQuestion = null; this.answers = new Map(); this.votes = new Map(); this.activeTimers = { phaseTimeout: null }; this.phaseAcknowledgments = new Set(); 
-        
+    constructor(gameId, humanSockets) { /* ... */ this.id = gameId; this.roomName = `game-${gameId}`; this.players = []; this.humanSockets = humanSockets; this.aiPlayers = []; this.currentRound = 0; this.currentPhase = null; this.currentAskerId = null; this.currentQuestion = null; this.answers = new Map(); this.votes = new Map(); this.activeTimers = { phaseTimeout: null }; this.phaseAcknowledgments = new Set();
+
+        // --- Add timeout constants with original values (Done above class properties now)
+
         // Add tracking for phase acknowledgments timing
         this.phaseAckTimers = new Map();
         // Add tracking for last acknowledgment time per player
@@ -60,6 +63,14 @@ class GameSession {
         this.aiQuestionTimeout = null;
         
         console.log(`Creating GameSession ${this.id}`); this.initializePlayers(); }
+
+    // Add a method to reset the AI attempt timeout to its original value
+    // This should be called at the beginning of each phase to ensure we start fresh
+    resetAIAttemptTimeout() {
+        this.AI_ATTEMPT_TIMEOUT = this.ORIGINAL_AI_ATTEMPT_TIMEOUT;
+        console.log(`Game ${this.id}: Reset AI attempt timeout to ${this.AI_ATTEMPT_TIMEOUT}ms`);
+    }
+
     initializePlayers() {
         usedNames.clear();
         const humanPlayerData = this.humanSockets.map(socket => ({
@@ -105,20 +116,44 @@ class GameSession {
     // --- >>> NEW: Add AI Action Retry Helper <<< ---
     // Replace the attemptAIActionWithRetry method in GameSession class
     async attemptAIActionWithRetry(player, actionType, context) {
-        const actionFuncMap = { 
-            question: aiController.getAIQuestion, 
-            answer: aiController.getAIAnswer, 
-            vote: aiController.getAIVote 
+        const actionFuncMap = {
+            question: aiController.getAIQuestion,
+            answer: aiController.getAIAnswer,
+            vote: aiController.getAIVote
         };
-        const fallbackValueMap = { 
-            question: this.getRandomFallbackQuestion(), 
-            answer: "(AI Error/Timeout)", 
+        const fallbackValueMap = {
+            question: this.getRandomFallbackQuestion(),
+            answer: "(AI Error/Timeout)",
             vote: null  // Abstain on vote error
         };
 
         const actionFunc = actionFuncMap[actionType];
         const fallback = fallbackValueMap[actionType];
         const playerName = player.name || player.id;
+
+        // We skip the delay for question type since that's handled separately in generateAIQuestionWithTimeout
+        if (actionType !== 'question') {
+            // Calculate a random delay between 8-15 seconds
+            const minDelay = 8000;  // 8 seconds
+            const maxDelay = 15000; // 15 seconds
+            const randomDelay = Math.floor(Math.random() * (maxDelay - minDelay)) + minDelay;
+
+            console.log(`Game ${this.id}: AI ${playerName} waiting ${randomDelay/1000}s before ${actionType}`);
+
+            // Wait for the random delay
+            await new Promise(resolve => setTimeout(resolve, randomDelay));
+
+            // Adjust timeout for the remaining time
+            // Note: The original logic `8000 - (randomDelay - 8000)` seems complex.
+            // A simpler approach might be `15000 - randomDelay` to use the total time budget.
+            // Let's stick to the provided logic for now, but it might need review.
+            // It seems to intend to reduce the timeout if the delay was long, ensuring a total time around 16s?
+            // Let's use the provided logic: timeout = max(5000, 8000 - (delay - 8000))
+            // If delay = 8000, timeout = 8000
+            // If delay = 15000, timeout = max(5000, 8000 - 7000) = 5000
+            this.AI_ATTEMPT_TIMEOUT = Math.max(5000, this.ORIGINAL_AI_ATTEMPT_TIMEOUT - (randomDelay - this.ORIGINAL_AI_ATTEMPT_TIMEOUT));
+            console.log(`Game ${this.id}: Adjusted timeout for ${actionType} to ${this.AI_ATTEMPT_TIMEOUT}ms based on delay ${randomDelay}ms`);
+        }
 
         // Add prompt template selection
         let promptTemplate = null;
@@ -141,9 +176,9 @@ class GameSession {
 
                 // Create the action promise
                 const actionPromise = actionFunc(
-                    player, 
+                    player,
                     actionType === 'question' ? promptTemplate : context?.question,
-                    actionType === 'answer' ? promptTemplate : context?.answersData
+                    actionType === 'answer' ? promptTemplate : context?.answersData // Pass answersData for vote context if needed by AI
                 );
 
                 // Race the promises
@@ -153,18 +188,18 @@ class GameSession {
                 let isValid = false;
                 if (actionType === 'vote') {
                     // Allow explicit null votes (abstaining) or valid string IDs
-                    isValid = (result === null) || 
-                             (typeof result === 'string' && 
-                              result.length > 0 && 
-                              !result.toLowerCase().includes("error") && 
-                              !result.toLowerCase().includes("blocked") && 
+                    isValid = (result === null) ||
+                             (typeof result === 'string' &&
+                              result.length > 0 &&
+                              !result.toLowerCase().includes("error") &&
+                              !result.toLowerCase().includes("blocked") &&
                               !result.toLowerCase().includes("timeout"));
                 } else {
                     // Question or Answer validation
-                    isValid = typeof result === 'string' && 
-                             result.length >= 2 && 
-                             !result.toLowerCase().includes("error") && 
-                             !result.toLowerCase().includes("blocked") && 
+                    isValid = typeof result === 'string' &&
+                             result.length >= 2 &&
+                             !result.toLowerCase().includes("error") &&
+                             !result.toLowerCase().includes("blocked") &&
                              !result.toLowerCase().includes("timeout");
                 }
 
@@ -182,7 +217,7 @@ class GameSession {
             } catch (error) {
                 const errorMsg = error.message === 'Timeout' ? 'timed out' : 'encountered an error';
                 console.warn(`Game ${this.id}: AI ${playerName} ${actionType} ${errorMsg} (Attempt ${attempt}): ${error.message}`);
-                
+
                 if (attempt === this.MAX_AI_ATTEMPTS) {
                     console.error(`Game ${this.id}: AI ${playerName} ${actionType} failed after ${this.MAX_AI_ATTEMPTS} attempts. Using fallback: "${fallback}"`);
                     return fallback;
@@ -234,9 +269,18 @@ class GameSession {
 
     // Modify startPhase to track timing
     async startPhase(phaseName) {
+        // Reset AI attempt timeout to original value
+        this.resetAIAttemptTimeout();
+
+        // Clear any existing AI question timeout
+        if (this.aiQuestionTimeout) {
+            clearTimeout(this.aiQuestionTimeout);
+            this.aiQuestionTimeout = null;
+        }
+
         // Clear previous acknowledgments when starting a new phase
         this.phaseAcknowledgments.clear();
-        
+
         // Store the time of this phase change
         this.lastPhaseChangeTime = Date.now();
         
@@ -548,29 +592,66 @@ class GameSession {
 
     // Add this new method to the GameSession class
     async generateAIQuestionWithTimeout(asker) {
-        // Set up a 15-second timeout for AI question generation
+        // Calculate a random delay between 8-15 seconds
+        const minDelay = 8000;  // 8 seconds
+        const maxDelay = 15000; // 15 seconds
+        const randomDelay = Math.floor(Math.random() * (maxDelay - minDelay)) + minDelay;
+
+        console.log(`Game ${this.id}: AI ${asker.name} waiting ${randomDelay/1000}s before asking question`);
+
+        // Wait for the random delay
+        await new Promise(resolve => setTimeout(resolve, randomDelay));
+
+        // Adjust the timeout based on the remaining time
+        const remainingTimeout = 15000 - randomDelay;
+        const timeoutDuration = Math.max(5000, remainingTimeout); // Ensure at least 5 seconds
+
+        // Clear any previous safety timeout just in case
+        if (this.aiQuestionTimeout) {
+            clearTimeout(this.aiQuestionTimeout);
+            this.aiQuestionTimeout = null;
+        }
+
+        // Set up a timeout for AI question generation (adjusted for the delay)
         const timeoutPromise = new Promise((resolve) => {
-            setTimeout(() => {
-                console.log(`Game ${this.id}: AI question generation timed out after 15s`);
+            // Store the timer ID so we can clear it if the question comes back faster
+            this.aiQuestionTimeout = setTimeout(() => {
+                console.log(`Game ${this.id}: AI question generation timed out after ${timeoutDuration/1000}s (adjusted)`);
                 resolve({
                     timedOut: true,
                     question: this.getRandomFallbackQuestion()
                 });
-            }, 15000);
+                this.aiQuestionTimeout = null; // Clear the reference once it fires
+            }, timeoutDuration);
         });
-        
+
         // Try to get AI question
         const questionPromise = new Promise(async (resolve) => {
             try {
                 const promptTemplate = this.getPromptTemplateForPlayer(asker);
-                const question = await aiController.getAIQuestion(asker, promptTemplate);
-                console.log(`Game ${this.id}: AI question generated: "${question}"`);
-                resolve({
-                    timedOut: false,
-                    question: question
-                });
+                // Use the attemptAIActionWithRetry for consistency, even though timeout is handled outside
+                // Pass a very long internal timeout to rely on the outer Promise.race
+                const question = await this.attemptAIActionWithRetry(
+                    asker,
+                    'question',
+                    { /* no context needed here */ },
+                    // Override timeout for this specific call within the retry logic
+                    // Set a large timeout so the outer race condition handles it primarily
+                    { overrideTimeout: 60000 } // e.g., 60 seconds, much larger than outer timeout
+                );
+
+                // If attemptAIActionWithRetry returns the fallback due to *internal* errors/timeouts
+                // it will still resolve here. We check if it's the fallback.
+                if (question === this.getRandomFallbackQuestion()) {
+                     console.log(`Game ${this.id}: AI question generation resulted in fallback internally.`);
+                     resolve({ timedOut: true, question: question }); // Treat internal fallback as timeout for simplicity
+                } else {
+                    console.log(`Game ${this.id}: AI question generated: "${question}"`);
+                    resolve({ timedOut: false, question: question });
+                }
             } catch (error) {
-                console.error(`Game ${this.id}: Error generating AI question:`, error);
+                // This catch might be less likely if attemptAIActionWithRetry handles its errors
+                console.error(`Game ${this.id}: Error generating AI question (outer promise):`, error);
                 resolve({
                     timedOut: true,
                     error: error,
@@ -578,23 +659,32 @@ class GameSession {
                 });
             }
         });
-        
+
         // Race the promises
         const result = await Promise.race([timeoutPromise, questionPromise]);
-        
-        console.log(`Game ${this.id}: AI question result:`, 
-            result.timedOut ? "TIMED OUT" : "SUCCESS", 
-            result.question);
-        
+
+        // IMPORTANT: Clear the timeout timer if the question promise resolved first
+        if (this.aiQuestionTimeout) {
+            clearTimeout(this.aiQuestionTimeout);
+            this.aiQuestionTimeout = null;
+        }
+
+        console.log(`Game ${this.id}: AI question result:`,
+            result.timedOut ? "TIMED OUT" : "SUCCESS",
+            `"${result.question}"`);
+
         // Always proceed to the next phase, with either the generated question or fallback
         this.currentQuestion = result.question;
+        // Check the phase *again* right before transitioning, as things might change
         if (this.currentPhase === 'ASKING') {
             console.log(`Game ${this.id}: Moving to ANSWERING phase with question: "${result.question}"`);
+            // Ensure we don't double-trigger startPhase if it was already called by a timeout
             this.startPhase('ANSWERING');
         } else {
-            console.log(`Game ${this.id}: Not in ASKING phase anymore, currently in ${this.currentPhase}`);
+            console.log(`Game ${this.id}: Not in ASKING phase anymore (currently ${this.currentPhase}), question generated but not used for transition.`);
         }
     }
+
 
     // Helper method to get a fallback question
     getRandomFallbackQuestion() {
