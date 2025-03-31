@@ -525,9 +525,16 @@ a[href="https://jam.pieter.com"] { z-index: 10000 !important; }
     background-color: var(--color-status-ask); /* Amber for asking */
     color: black; 
 }
-.phase-answer.active { 
-    background-color: var(--color-accent); /* Blue for answering */
-    color: white; 
+/* Fix for Answer phase colors */
+.phase-answer.active {
+    background-color: var(--color-accent) !important; /* Force blue background color */
+    color: white !important; /* Keep white text for contrast against blue */
+    font-weight: 600; /* Make the text slightly bolder */
+}
+
+/* You might also need to force the background for the entire element */
+.phase-step.phase-answer.active {
+    background-color: var(--color-accent) !important;
 }
 .phase-vote.active { 
     background-color: var(--color-status-vote); /* Red for voting */
