@@ -821,10 +821,13 @@ function updatePlayerCardForPhase(player, playerCard, displayData = {}) {
         // VOTING phase
         else if (currentPhase === 'VOTING') {
             if (detailsElement) {
-                detailsElement.classList.add('is-answer'); // Keep this class for styling
+                // Add both classes for better CSS targeting
+                detailsElement.classList.add('is-answer');
+                detailsElement.classList.add('speech-bubble');
+
                 const answerInfo = displayData.answers?.[player.id];
                 if (answerInfo) {
-                    // Remove the quotes from the display since we'll add them with CSS
+                    // Remove any existing quotes
                     let answerText = answerInfo.answer;
                     // Remove existing quotes if present
                     answerText = answerText.replace(/^["']|["']$/g, "");

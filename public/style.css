@@ -548,9 +548,9 @@ a[href="https://jam.pieter.com"] { z-index: 10000 !important; }
     background-color: var(--color-status-vote); /* Red for voting */
     color: white; 
 }
-.phase-reveal.active { 
-    background-color: var(--color-text-subtle); /* Gray for reveal */
-    color: white; 
+.phase-reveal.active {
+    background-color: var(--color-success ) !important; /* Changed from gray to green */
+    color: white;
 }
 
 /* Emergency Refresh Button */
@@ -729,7 +729,7 @@ body.phase-reveal .phase-reveal {
 
 /* Add quotation marks to answers for visual clarity */
 .player-card p.player-details.is-answer::before {
-    content: '"';          /* Opening quote */
+    content: '';
     color: var(--color-accent);
     font-size: 1.4em;
     line-height: 0;
@@ -739,7 +739,7 @@ body.phase-reveal .phase-reveal {
 }
 
 .player-card p.player-details.is-answer::after {
-    content: '"';          /* Closing quote */
+    content: '';
     color: var(--color-accent);
     font-size: 1.4em;
     line-height: 0;
@@ -781,4 +781,55 @@ body.phase-reveal .phase-reveal {
     color: var(--color-text-subtle);
     font-style: italic;
     text-align: right;
+}
+
+/* Base Speech Bubble Style - Much simpler and more direct */
+.player-card .player-details {
+    position: relative;
+    background-color: #E2E8F0;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin: 15px auto 8px; /* More top margin for the tail */
+    width: 90%;
+    font-size: 1.1rem;
+    line-height: 1.5;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* The simple tail - added to EVERY player-details */
+.player-card .player-details:before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    margin-left: -8px;
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-bottom: 8px solid #E2E8F0;
+    z-index: 5; /* Higher z-index to ensure it shows */
+    display: block !important; /* Force display */
+}
+
+/* Special styling for different players */
+.player-card.current-asker .player-details {
+    background-color: #FEF3C7;
+}
+
+.player-card.current-asker .player-details:before {
+    border-bottom-color: #FEF3C7;
+}
+
+.player-card.is-me .player-details {
+    background-color: #E1F0FF;
+}
+
+.player-card.is-me .player-details:before {
+    border-bottom-color: #E1F0FF;
+}
+
+/* Remove all quotation marks */
+.player-card .player-details:after {
+    display: none !important;
 }
