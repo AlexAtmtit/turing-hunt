@@ -146,64 +146,63 @@ const ANSWER_WORD_COUNT = ["1", "1", "2", "2", "3", "3", "4", "5"];
 
 // Add more internet-style traits
 const ADDITIONAL_INTELLIGENCE_LEVELS = [
-    "u r super smart",
-    "ur kinda dumb lol",
-    "ur average intelligence",
-    "u overthink everything"
+    "you are super smart",
+    "you are dumb",
+    "you are average intelligence",
+    "you are overthink everything"
 ];
 
 const ADDITIONAL_MOODS = [
-    "ur super hyped",
-    "ur totally chill",
-    "ur lowkey annoyed",
-    "ur feeling meh",
-    "ur kinda bored"
+    "you are super hyped",
+    "you are totally chill",
+    "you are lowkey annoyed",
+    "you are feeling meh",
+    "you are kinda bored"
 ];
 
 const ADDITIONAL_OPENNESS_TRAITS = [
-    "ur super random",
-    "ur basic af",
-    "ur pretty deep",
-    "ur very artsy"
+    "you are super random",
+    "you are basic af",
+    "you are pretty deep",
+    "you are very artsy"
 ];
 
 const ADDITIONAL_AGREEABLENESS_TRAITS = [
-    "ur super nice",
-    "ur kinda harsh",
-    "ur brutally honest",
-    "ur pretty chill",
-    "ur totally laid back"
+    "you are super nice",
+    "you are kinda harsh",
+    "you are brutally honest",
+    "you are pretty chill",
+    "you are totally laid back"
 ];
 
 const ADDITIONAL_SOCIAL_TRAITS = [
-    "ur an introvert",
-    "ur an extrovert",
-    "ur awkward af",
-    "ur too cool",
-    "ur kinda quirky"
+    "you are an introvert",
+    "you are an extrovert",
+    "you are awkward af",
+    "you are too cool",
+    "you are kinda quirky"
 ];
 
 const ADDITIONAL_EMOTIONAL_TRAITS = [
-    "ur sensitive af",
-    "ur dead inside lol",
-    "ur super dramatic",
-    "ur chill bout everything",
-    "ur super moody"
+    "you are sensitive af",
+    "you are dead inside lol",
+    "you are super dramatic",
+    "you are chill bout everything",
+    "you are super moody"
 ];
 
 // Additional text style traits
 const TEXT_STYLE_TRAITS = [
-    "u sometimes use ALL CAPS for emphasis",
-    "u use lots of !!!! sometimes",
-    "u never capitalize anything",
-    "u use ... a lot",
-    "u use lol after sentences sometimes",
-    "u use emojis sometimes but not here",
-    "u abbreviate words like prob and def",
-    "u occasionally stretch words like sooooo",
-    "u replace 'to' with '2' and 'for' with '4'",
-    "u skip vowels smtms",
-    "u occasnlly mispel things"
+    "you use ALL CAPS for emphasis",
+    "you use lots of !!!! sometimes",
+    "you never capitalize anything",
+    "you use ... a lot",
+    "you use lol after sentences sometimes",
+    "you abbreviate words like prob and def",
+    "you occasionally stretch words like sooooo",
+    "you replace 'to' with '2' and 'for' with '4'",
+    "you skip vowels smtms",
+    "you occasnlly mispel things"
 ];
 
 // Helper function to get a random value from an array
