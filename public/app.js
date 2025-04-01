@@ -837,11 +837,15 @@ function updatePlayerCardForPhase(player, playerCard, displayData = {}) {
                 voteButtonContainer.innerHTML = ''; // Clear previous buttons
                 voteButtonContainer.style.display = 'block';
 
+                // Check if current player (the voter) is active
+                const myPlayer = currentPlayers.find(p => p.id === myPlayerId); // Added check
+                const isCurrentPlayerActive = myPlayer && myPlayer.status === 'active'; // Added check
+
                 const voteButton = document.createElement('button');
                 voteButton.classList.add('vote-button');
                 voteButton.dataset.votedPlayerId = player.id;
                 voteButton.textContent = `That's AI!`;
-                voteButton.disabled = hasVotedThisRound || player.id === myPlayerId;
+                voteButton.disabled = hasVotedThisRound || player.id === myPlayerId || !isCurrentPlayerActive; // Added !isCurrentPlayerActive
                 voteButtonContainer.appendChild(voteButton);
 
                 // Show thinking indicator for active players who haven't voted (and aren't you)
@@ -1272,11 +1276,16 @@ function updateQuestionDisplay(data) {
     }
 }
 
+// *** MODIFIED FUNCTION ***
 function updateInputAreaVisibility(data) {
     try {
         if (!inputArea) return;
 
-        if (currentPhase === 'ASKING' && data.askerId === myPlayerId) {
+        // Get the current player's status
+        const myPlayer = currentPlayers.find(p => p.id === myPlayerId);
+        const isPlayerActive = myPlayer && myPlayer.status === 'active'; // Added check
+
+        if (currentPhase === 'ASKING' && data.askerId === myPlayerId && isPlayerActive) { // Added isPlayerActive check
             if (inputLabel) inputLabel.textContent = `Ask (max ${QUESTION_MAX_LENGTH}):`;
             if (submitButton) submitButton.textContent = 'Submit Q';
             if (gameInput) {
@@ -1284,7 +1293,7 @@ function updateInputAreaVisibility(data) {
                 gameInput.maxLength = QUESTION_MAX_LENGTH;
             }
             inputArea.style.display = 'block';
-        } else if (currentPhase === 'ANSWERING' && data.askerId !== myPlayerId) {
+        } else if (currentPhase === 'ANSWERING' && data.askerId !== myPlayerId && isPlayerActive) { // Added isPlayerActive check
             if (inputLabel) inputLabel.textContent = `Your answer:`;
             if (submitButton) submitButton.textContent = 'Submit A';
             if (gameInput) {
