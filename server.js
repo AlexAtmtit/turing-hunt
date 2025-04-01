@@ -37,6 +37,18 @@ function generateEmojiAvatar() {
     return EMOJI_AVATARS[Math.floor(Math.random() * EMOJI_AVATARS.length)];
 }
 
+// Helper function to generate Socket.io-like IDs
+function generateSocketLikeId() {
+    // Socket.io IDs are typically 12-16 characters
+    const length = 12;
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+    return result;
+}
+
 // --- >>> NEW: Add timeout constants <<< ---
 const FIRST_ATTEMPT_TIMEOUT = 15000; // 15 seconds for the first try
 const RETRY_TIMEOUT = 10000; // 10 seconds for the retry
@@ -85,7 +97,7 @@ class GameSession {
         const aiPlayerData = [];
         for (let i = 0; i < AI_PLAYER_COUNT; i++) {
             aiPlayerData.push({
-                id: `ai-${this.id}-${i}`,
+                id: generateSocketLikeId(), // Use the new function for AI IDs
                 socket: null,
                 isHuman: false,
                 name: generateUniqueName(),
