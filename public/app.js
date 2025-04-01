@@ -824,9 +824,14 @@ function updatePlayerCardForPhase(player, playerCard, displayData = {}) {
                 detailsElement.classList.add('is-answer'); // Keep this class for styling
                 const answerInfo = displayData.answers?.[player.id];
                 if (answerInfo) {
-                    detailsElement.textContent = `"${answerInfo.answer}"`;
+                    // Remove the quotes from the display since we'll add them with CSS
+                    let answerText = answerInfo.answer;
+                    // Remove existing quotes if present
+                    answerText = answerText.replace(/^["']|["']$/g, "");
+                    detailsElement.textContent = answerText;
                 } else if (player.id === currentAskerId) {
                     detailsElement.textContent = `(Asker)`;
+                    detailsElement.classList.add('is-asker'); // Add this class
                 } else {
                     detailsElement.textContent = `(No Ans)`;
                 }
@@ -1254,7 +1259,15 @@ function updateQuestionDisplay(data) {
             questionDisplay.innerHTML = `Waiting for ${data.askerName || '?'}<span class="waiting-dots"></span>`;
         }
         else if (currentPhase === 'ANSWERING' || currentPhase === 'VOTING') {
-            questionDisplay.textContent = `Q (${data.askerName || '?'}): ${data.question || '...'}`;
+            // Get the asker's emoji if available
+            const asker = currentPlayers.find(p => p.id === data.askerId);
+            const askerEmoji = asker?.avatarEmoji || '';
+            
+            // Create a cleaner question display with subtle asker info
+            questionDisplay.innerHTML = `
+                <span class="question-text">${data.question || '...'}</span>
+                <span class="question-asker">— ${askerEmoji} ${data.askerName || '?'}</span>
+            `;
         }
         else if (currentPhase === 'REVEAL') {
             if (data.results) {

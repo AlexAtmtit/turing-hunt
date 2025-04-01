@@ -138,16 +138,18 @@ p {
 }
 
 #question-display {
-    background-color: transparent; /* No background */
-    padding: 0.5rem 0; /* Only vertical padding */
-    margin: 0 0 1.5rem 0; /* Adjusted margin */
-    min-height: 1.5em;
-    font-size: 1.1rem; /* Slightly larger question */
-    font-weight: 500;
-    color: var(--color-text);
-    border-left: 3px solid var(--color-accent); /* Accent border */
-    padding-left: 0.75rem;
-    word-wrap: break-word;
+    font-size: 1.3rem;     /* Increased from 1.1rem */
+    font-weight: 600;      /* Increased from 500 */
+    padding: 0.7rem 0;     /* Increased vertical padding */
+    border-left: 4px solid var(--color-accent); /* Thicker accent */
+    background-color: rgba(37, 99, 235, 0.05); /* Very light blue background */
+    padding-left: 0.75rem; /* Keep left padding */
+    padding-right: 0.75rem; /* Add right padding too */
+    border-radius: 0 4px 4px 0; /* Rounded right corners */
+    margin-bottom: 1.8rem; /* More space below */
+    min-height: 1.5em; /* Keep min-height */
+    color: var(--color-text); /* Keep color */
+    word-wrap: break-word; /* Keep word-wrap */
 }
 #question-display:empty {
     display: none; /* Hide if no question text */
@@ -184,15 +186,17 @@ p {
 }
 
 .player-card .avatar-container {
-    margin-bottom: 0.75rem;
-    font-size: 2.5rem;  /* Added larger font size for emoji */
+    margin-bottom: 0.5rem; /* Reduced from 0.75rem */
+    font-size: 1.8rem;     /* Reduced from 2.5rem */
+    opacity: 0.8;          /* Make slightly more subtle */
     line-height: 1;     /* Added to prevent extra spacing */
 }
 
 .player-card .player-name {
-    font-size: 0.9rem;
-    font-weight: 500;
-    margin-bottom: 0.5rem;
+    font-size: 0.8rem;     /* Reduced from 0.9rem */
+    font-weight: 400;      /* Reduced from 500 */
+    color: var(--color-text-subtle); /* More subtle color */
+    margin-bottom: 0.3rem; /* Reduced from 0.5rem */
     display: inline;
     word-break: break-word;
 }
@@ -233,19 +237,23 @@ p {
 
 /* Answer/Vote Details Area */
 .player-card .player-details {
-    font-size: 0.85rem;
-    margin: 0.5rem 0;
-    padding: 0.5em 0.6em;
-    background-color: #F9FAFB; /* Very light gray background */
-    border-radius: 4px;
-    width: 95%;
-    word-wrap: break-word;
-    min-height: 2.5em;
-    color: var(--color-text-subtle); /* Subtle text for details */
-    font-style: normal;
-    display: none; /* Hide by default */
-    box-sizing: border-box;
-    line-height: 1.4;
+    font-size: 1rem;       /* Increased from 0.85rem */
+    margin: 0.25rem 0 0.75rem; /* More bottom space */
+    padding: 0.7em 0.8em;  /* More padding */
+    background-color: #F3F4F6; /* Slightly darker background */
+    border-left: 3px solid var(--color-accent); /* Add accent border like question */
+    width: 100%;           /* Full width */
+    line-height: 1.5;      /* Increased from 1.4 */
+    font-weight: 400;      /* Normal weight */
+    min-height: 3em;       /* Taller minimum height */
+    position: relative;    /* For positioning icons/indicators */
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05); /* Subtle shadow */
+    border-radius: 4px; /* Keep border-radius */
+    word-wrap: break-word; /* Keep word-wrap */
+    color: var(--color-text-subtle); /* Keep subtle text for details */
+    font-style: normal; /* Keep font-style */
+    display: none; /* Keep hide by default */
+    box-sizing: border-box; /* Keep box-sizing */
 }
 .player-card p.player-details.is-answer {
      font-style: italic; /* Italic only for answers */
@@ -288,7 +296,7 @@ button.vote-button:disabled {
 }
 .player-card.current-asker {
     border-color: var(--color-status-ask);
-    box-shadow: 0 0 6px 0px rgb(245 158 11 / 0.5); /* Amber glow */
+    box-shadow: 0 0 8px 0px rgb(245 158 11 / 0.4); /* Enhanced glow */
 }
 .player-card.eliminated {
     opacity: 0.5;
@@ -715,4 +723,62 @@ body.phase-reveal .phase-reveal {
   .social-links {
     margin-left: 0;
   }
+}
+
+/* --- Visual Hierarchy Enhancements --- */
+
+/* Add quotation marks to answers for visual clarity */
+.player-card p.player-details.is-answer::before {
+    content: '"';          /* Opening quote */
+    color: var(--color-accent);
+    font-size: 1.4em;
+    line-height: 0;
+    vertical-align: -0.3em;
+    opacity: 0.5;
+    margin-right: 0.1em; /* Add slight spacing */
+}
+
+.player-card p.player-details.is-answer::after {
+    content: '"';          /* Closing quote */
+    color: var(--color-accent);
+    font-size: 1.4em;
+    line-height: 0;
+    vertical-align: -0.3em;
+    opacity: 0.5;
+    margin-left: 0.1em; /* Add slight spacing */
+}
+
+/* Add a "fade-in" animation for new answers */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.player-card .player-details.is-answer {
+    animation: fadeIn 0.3s ease-out;
+    font-style: normal !important; /* Override italic style if present */
+    color: var(--color-text); /* Make answer text less subtle */
+}
+
+/* Add a small indicator next to asker name */
+.player-card.current-asker .player-name::after {
+    content: " (asked)";
+    font-size: 0.75rem;
+    color: var(--color-status-ask);
+    font-style: italic;
+    margin-left: 0.3em;
+}
+
+/* Question styling enhancements */
+.question-text {
+    display: block;
+    margin-bottom: 0.3rem;
+}
+
+.question-asker {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--color-text-subtle);
+    font-style: italic;
+    text-align: right;
 }
