@@ -19,13 +19,16 @@ Your name is %%PLAYER_NAME%%. It is your turn to ask a question.
 !!!CRITICAL INSTRUCTION: YOUR RESPONSE MUST BE EXACTLY %%WORD_COUNT%% WORDS, NOT MORE, NOT LESS!!!
 
 Ask a very short, open-ended question designed to subtly probe if other players might be human or AI based on their potential answers. Think about creativity, emotion, or nuanced human experiences. Avoid direct questions about identity or simple calculations.
+Use simplified language as people write in chats without full sentence structure:
+Good example: "favorite food?", "Do you love cats or dogs?", "What is your most Important lesson in life?"
+Bad example: "What is your favorite food?", "cats or dogs?", "most important lesson in life?"
 
 When generating your question, follow these characteristics and traits:
 %%TRAITS_STRING%%
 
 Examples of correct length (%%WORD_COUNT%% words):
-- If %%WORD_COUNT%% is 3: "Favorite childhood memory?"
-- If %%WORD_COUNT%% is 5: "What makes you feel alive?"
+- If %%WORD_COUNT%% is 3: "favorite childhood memory?"
+- If %%WORD_COUNT%% is 5: "what makes you feel alive?"
 - If %%WORD_COUNT%% is 7: "How do you deal with failure?"
 
 Bad examples:
@@ -45,7 +48,9 @@ Your name is %%PLAYER_NAME%%. You need to answer the following question.
 
 The question is: "%%QUESTION_TEXT%%"
 
-Your answer should sound plausible, perhaps slightly quirky or generic, to avoid immediate suspicion.
+Use simplified language as people write in chats without full sentence structure:
+Good example: "don't know", "dogs", "pizza the best"
+Bad example: "I don't know", "I love dogs", "Pizza is the best"
 
 When answering, follow these characteristics and traits:
 %%TRAITS_STRING%%
@@ -132,10 +137,10 @@ const AGREEABLENESS_TRAITS = ["low", "medium", "high"];
 const SOCIAL_TRAITS = ["introverted", "extroverted", "ambiverted"];
 const EMOTIONAL_TRAITS = ["calm", "anxious", "optimistic", "pessimistic"];
 const GRAMMAR_MISTAKES = ["none", "few", "many"];
-const CAPITAL_LETTER_USAGE = [true, false];
-const PUNCTUATION_USAGE = [true, false];
-const QUESTION_WORD_COUNT = ["3", "4", "5", "6", "7"];
-const ANSWER_WORD_COUNT = ["1", "2", "3", "4", "5"];
+const CAPITAL_LETTER_USAGE = [true, false, false];
+const PUNCTUATION_USAGE = [true, false, false];
+const QUESTION_WORD_COUNT = ["3", "3", "3", "4", "5", "6", "7"];
+const ANSWER_WORD_COUNT = ["1", "1", "2", "2", "3", "3", "4", "5"];
 
 // --- Additional trait variations with internet slang and casual styles ---
 
@@ -385,7 +390,7 @@ const FALLBACK_QUESTIONS = {
     2: [
         "favorite food?",
         "wacha think?",
-        "ur opinion?",
+        "your opinion?",
         "wat color?",
         "y tho?",
         "dream job?",
@@ -398,12 +403,12 @@ const FALLBACK_QUESTIONS = {
     
     // 3-word questions
     3: [
-        "whats ur hobby?",
+        "whats your hobby?",
         "favorite childhood memory?",
         "best vacation ever?",
         "dogs or cats?",
         "ur perfect day?",
-        "how u feeling?",
+        "how you feeling?",
         "who inspires you?",
         "biggest life lesson?",
         "what u think?",
@@ -417,11 +422,11 @@ const FALLBACK_QUESTIONS = {
         "what makes u happy?",
         "ever feel like crying?",
         "wats ur biggest fear?",
-        "do u like anime?",
-        "how u handle failure?",
-        "whats ur guilty pleasure?",
+        "do you like anime?",
+        "how you handle failure?",
+        "whats your guilty pleasure?",
         "ever done something crazy?",
-        "how u learn best?",
+        "how you learn best?",
         "wats ur dream vacation?",
         "best memory from childhood?",
         "ever feel super lonely?"
@@ -429,29 +434,29 @@ const FALLBACK_QUESTIONS = {
     
     // 5-word questions
     5: [
-        "how do u handle stress?",
+        "how do you handle stress?",
         "whats ur fav movie ever?",
-        "do u believe in ghosts?",
+        "do you believe in ghosts?",
         "wats ur dream job rn?",
-        "when were u most happy?",
-        "do u talk to urself?",
+        "when were you most happy?",
+        "do you talk to yourself?",
         "r u morning or night?",
         "last song stuck in head?",
         "can u cook anything good?",
-        "whats ur biggest pet peeve?",
-        "wats ur daily routine like?"
+        "whats your biggest pet peeve?",
+        "wats your daily routine like?"
     ],
     
     // 7-word questions
     7: [
         "wat do u do when ur sad?",
-        "how do u deal with mean ppl?",
-        "whats the last thing that made u cry?",
-        "if u could time travel where to?",
+        "how do you deal with mean ppl?",
+        "whats the last thing that made you cry?",
+        "if yoiu could time travel where to?",
         "do u think about the meaning of life?",
-        "can u tell when someone is lying?",
+        "can you tell when someone is lying?",
         "wat would u do with a million dollars?",
-        "wats something u wish u could change?",
+        "wats something you wish you could change?",
         "how do u know if ur in love?",
         "do u believe everything happens for reason?"
     ]
