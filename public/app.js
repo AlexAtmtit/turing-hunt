@@ -1,6 +1,114 @@
 // app.js (Corrected Again - Focused on Stability)
 console.log("App.js loading...");
 
+// Invite friends functionality
+function setupInviteButton() {
+    const inviteButton = document.getElementById('invite-button');
+    const shareDropdown = document.getElementById('share-dropdown');
+    const copyConfirmation = document.getElementById('copy-confirmation');
+    
+    if (!inviteButton || !shareDropdown) return;
+
+    // The URL to share
+    const shareUrl = 'https://turinghunt.com/';
+    const shareText = 'Join me for a game of Turing Hunt - Ask Smart Questions to Eliminate AI Before They Eliminate You';
+    
+    // Setup sharing links
+    const twitterLink = document.getElementById('share-twitter');
+    const facebookLink = document.getElementById('share-facebook');
+    const linkedinLink = document.getElementById('share-linkedin');
+    
+    if (twitterLink) {
+        twitterLink.href = `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`;
+        twitterLink.target = '_blank';
+        twitterLink.rel = 'noopener noreferrer';
+    }
+    
+    if (facebookLink) {
+        facebookLink.href = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
+        facebookLink.target = '_blank';
+        facebookLink.rel = 'noopener noreferrer';
+    }
+    
+    if (linkedinLink) {
+        linkedinLink.href = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`;
+        linkedinLink.target = '_blank';
+        linkedinLink.rel = 'noopener noreferrer';
+    }
+    
+    // Toggle dropdown when clicking the button
+    inviteButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // Toggle dropdown visibility
+        shareDropdown.classList.toggle('show');
+        
+        // Always copy link when clicking the button
+        copyToClipboard(shareUrl);
+        
+        // Show confirmation
+        copyConfirmation.style.display = 'block';
+        copyConfirmation.style.animation = 'none';
+        setTimeout(() => {
+            copyConfirmation.style.animation = 'fadeOut 2s forwards';
+            copyConfirmation.style.animationDelay = '2s';
+        }, 10);
+    });
+    
+    // Close dropdown when clicking anywhere else
+    document.addEventListener('click', (event) => {
+        if (shareDropdown.classList.contains('show') && 
+            !shareDropdown.contains(event.target) && 
+            event.target !== inviteButton) {
+            shareDropdown.classList.remove('show');
+        }
+    });
+    
+    // Close dropdown when touch outside on mobile
+    document.addEventListener('touchstart', (event) => {
+        if (shareDropdown.classList.contains('show') && 
+            !shareDropdown.contains(event.target) && 
+            event.target !== inviteButton) {
+            shareDropdown.classList.remove('show');
+        }
+    });
+    
+    // Helper function to copy to clipboard
+    function copyToClipboard(text) {
+        // Modern clipboard API
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text)
+                .catch(err => {
+                    console.error('Could not copy text with Clipboard API:', err);
+                    fallbackCopyToClipboard(text);
+                });
+        } else {
+            // Fallback for older browsers
+            fallbackCopyToClipboard(text);
+        }
+    }
+    
+    // Fallback clipboard method
+    function fallbackCopyToClipboard(text) {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed"; // Avoid scrolling to bottom
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+            document.execCommand('copy');
+        } catch (err) {
+            console.error('Fallback: Could not copy text:', err);
+        }
+        
+        document.body.removeChild(textArea);
+    }
+}
+
+
 // --- DOM Element References ---
 // Use functions to get elements, allows script to load even if DOM isn't fully ready? (Less likely needed now but safer)
 const getElem = (id) => document.getElementById(id);
@@ -1034,6 +1142,10 @@ socket.on('waiting_player_count', (count) => {
         statusMessage.innerHTML = `Waiting for Human Players (${count}/${maxPlayers}<span class="waiting-dots"></span>)<br>Game starts when 3 humans join.`;
         if (rulesBox) rulesBox.style.display = 'block';
         if (gameArea) gameArea.style.display = 'none';
+        
+        // Show invite section when waiting
+        const inviteSection = document.getElementById('invite-section');
+        if (inviteSection) inviteSection.style.display = 'block';
     }
 });
 
@@ -1075,6 +1187,10 @@ socket.on('game_start', (initialData) => {
     if (answerArea) answerArea.innerHTML = '';
     if (questionDisplay) questionDisplay.textContent = '';
     if (rulesBox) rulesBox.style.display = 'none';
+    
+    // Hide invite section when game starts
+    const inviteSection = document.getElementById('invite-section');
+    if (inviteSection) inviteSection.style.display = 'none';
 
     // Update player list with a clean slate
     if (playerList) {
@@ -1636,10 +1752,12 @@ if (document.readyState === 'loading') {
      document.addEventListener('DOMContentLoaded', () => {
          setupEventListeners();
          setupAllFixedFunctionality(); // Call the new setup function
+         setupInviteButton(); // Initialize invite button functionality
      });
 } else {
      setupEventListeners(); // DOM already loaded
      setupAllFixedFunctionality(); // Call the new setup function
+     setupInviteButton(); // Initialize invite button functionality
 }
 console.log("App.js loaded.");
 // Removed old setTimeout connection check - handled by updateConnectionStatus and heartbeat

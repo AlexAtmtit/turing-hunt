@@ -36,12 +36,27 @@
         <!-- Status Area: Shows phase, round, timer etc. -->
         <div id="status-area">
             <p id="status-message">Connecting to server<span class="waiting-dots"></span></p>
-            <p id="timer-display"></p>
-        </div>
+    <p id="timer-display"></p>
+</div>
 
-        <!-- Rules Box -->
-        <div id="rules-box">
-            <h2>What are the rules again?</h2>
+<!-- Add this new section ABOVE the rules box -->
+<div id="invite-section" class="invite-section">
+    <div class="dropdown">
+        <button id="invite-button" class="invite-button">
+            <span class="invite-icon">🔗</span> Invite Friends
+        </button>
+        <div id="share-dropdown" class="share-dropdown">
+            <a href="#" id="share-twitter" class="share-option"><span>Twitter/X</span></a>
+            <a href="#" id="share-facebook" class="share-option"><span>Facebook</span></a>
+            <a href="#" id="share-linkedin" class="share-option"><span>LinkedIn</span></a>
+        </div>
+    </div>
+    <span id="copy-confirmation" class="copy-confirmation">Link copied! ✓</span>
+</div>
+
+<!-- Rules Box (remains unchanged) -->
+<div id="rules-box">
+    <h2>What are the rules again?</h2>
             <ul>
                 <li>👥 <strong>3 Humans vs 3 AI</strong>. Players don't know who is who.</li>
                 <li>🎯 <strong>Humans:</strong> Eliminate all AI. <strong>AI:</strong> Eliminate all Humans.</li>
