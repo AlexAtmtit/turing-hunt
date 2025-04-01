@@ -94,11 +94,67 @@ function updateTimerDisplay() {
     }
 }
 
+// --- >>> NEW: Validation Error Handling <<< ---
+
+// Add a function to create or update the validation error message element
+function showValidationError(message) {
+    // Remove any existing validation message
+    const existingError = document.getElementById('validation-error');
+    if (existingError) {
+        existingError.remove();
+    }
+
+    // Create a new error message element
+    const errorElement = document.createElement('div');
+    errorElement.id = 'validation-error';
+    errorElement.textContent = message;
+    errorElement.style.color = '#e53e3e'; // Red text
+    errorElement.style.marginTop = '6px';
+    errorElement.style.fontSize = '0.9rem';
+    errorElement.style.textDecoration = 'underline';
+    errorElement.style.fontWeight = '500';
+
+    // Add a subtle animation
+    errorElement.style.animation = 'fadeIn 0.3s';
+
+    // Add it after the input area
+    const inputArea = document.getElementById('input-area');
+    if (inputArea) {
+        inputArea.appendChild(errorElement);
+
+        // Auto-hide the error after 5 seconds
+        setTimeout(() => {
+            if (errorElement.parentNode) {
+                errorElement.style.animation = 'fadeOut 0.5s';
+                errorElement.addEventListener('animationend', () => {
+                    if (errorElement.parentNode) {
+                        errorElement.parentNode.removeChild(errorElement);
+                    }
+                });
+            }
+        }, 5000);
+    }
+}
+
+function clearValidationError() {
+    const existingError = document.getElementById('validation-error');
+    if (existingError && existingError.parentNode) {
+        // Add fade out animation before removing
+        existingError.style.animation = 'fadeOut 0.3s';
+        existingError.addEventListener('animationend', () => {
+             if (existingError && existingError.parentNode) { // Check again in case it was removed already
+                existingError.parentNode.removeChild(existingError);
+             }
+        });
+    }
+}
+// --- >>> END Validation Error Handling <<< ---
+
 // Make the forceUIRefresh function more efficient
 function forceUIRefresh(serverState = null) {
     try {
         console.log("🔄 Forcing UI refresh", serverState ? `with server state: ${serverState.correctPhase}` : "");
-        
+
         // If we have server state, update our local state first
         if (serverState && serverState.correctPhase) {
             currentPhase = serverState.correctPhase;
@@ -107,12 +163,12 @@ function forceUIRefresh(serverState = null) {
                 document.body.setAttribute('data-current-round', serverState.correctRound);
             }
         }
-        
+
         // Only update the parts of the UI that need it
-        
+
         // 1. Phase indicator - always update this
         updatePhaseIndicator(currentPhase);
-        
+
         // 2. Question display - only if empty or if we need to
         if (questionDisplay && (!questionDisplay.textContent || serverState?.reason === 'phase_mismatch')) {
             // If we have the question cached, use it
@@ -120,19 +176,19 @@ function forceUIRefresh(serverState = null) {
                 questionDisplay.textContent = currentQuestion;
             }
         }
-        
+
         // 3. Player list - only rebuild if it looks wrong
         if (playerList && Array.isArray(currentPlayers)) {
             const playerElements = document.querySelectorAll('.player-card');
-            
+
             // Only rebuild the player list if:
             // - It's empty
             // - The count doesn't match
             // - We're explicitly told to (phase_mismatch)
-            if (playerElements.length === 0 || 
+            if (playerElements.length === 0 ||
                 playerElements.length !== currentPlayers.length ||
                 serverState?.reason === 'phase_mismatch') {
-                
+
                 playerList.innerHTML = '';
                 updateGameUI(currentPlayers, {
                     answers: currentAnswers || {},
@@ -140,7 +196,7 @@ function forceUIRefresh(serverState = null) {
                 });
             }
         }
-        
+
         // 4. Input area visibility - make sure it's correct
         if (currentPhase) {
             updateInputAreaVisibility({
@@ -148,9 +204,9 @@ function forceUIRefresh(serverState = null) {
                 askerId: currentAskerId
             });
         }
-        
+
         console.log("🔄 Forced UI refresh completed");
-        
+
         // Update UI update timestamp
         lastUIUpdate = Date.now();
     } catch (error) {
@@ -162,27 +218,27 @@ function forceUIRefresh(serverState = null) {
 function recoverStateFromDOM() {
     // If we have state in memory, use that
     if (currentPhase) return;
-    
+
     // Try to recover from DOM attributes
     const phaseAttr = document.body.getAttribute('data-current-phase');
     if (phaseAttr) {
         console.log(`Recovering phase from DOM: ${phaseAttr}`);
         currentPhase = phaseAttr;
     }
-    
+
     const roundAttr = document.body.getAttribute('data-current-round');
     if (roundAttr) {
         console.log(`Recovering round from DOM: ${roundAttr}`);
         // This is just for reporting, we don't have a currentRound variable
     }
-    
+
     // See if we can recover the question from the DOM
     const questionElem = document.querySelector('#question-display');
     if (questionElem && questionElem.textContent) {
         console.log(`Recovering question from DOM: ${questionElem.textContent}`);
         currentQuestion = questionElem.textContent;
     }
-    
+
     // See if we can identify the current asker from player cards
     const askerCard = document.querySelector('.player-card.current-asker');
     if (askerCard) {
@@ -194,38 +250,38 @@ function recoverStateFromDOM() {
 // Add to client-side state recovery
 function attemptStateRecovery() {
     debugLog('Attempting state recovery');
-    
+
     // If we're in a game but UI seems wrong
     if (isInGame && myPlayerId) {
         // Check if phase indicator is set correctly
         const activePhaseStep = document.querySelector('.phase-step.active');
         const hasPhaseIndicator = !!activePhaseStep;
-        
+
         // Check if player list is populated
         const hasPlayers = playerList && playerList.children.length > 0;
-        
+
         // Check if we've been stuck in the ASKING phase for too long
-        const isStuckInAsking = currentPhase === 'ASKING' && 
+        const isStuckInAsking = currentPhase === 'ASKING' &&
                               (Date.now() - lastUIUpdate > 60000); // 60 seconds
-        
+
         // If anything looks wrong, try to recover
         if (!currentPhase || !hasPhaseIndicator || !hasPlayers || isStuckInAsking) {
             console.warn('Game state appears invalid - requesting refresh');
-            
+
             // Get game ID from data attribute if available
             const gameId = document.body.getAttribute('data-game-id') || socket.gameId;
-            
+
             // Request state from server
             socket.emit('game_state_request', { gameId, playerId: myPlayerId });
-            
+
             // Force UI refresh with current state
             forceUIRefresh();
-            
+
             // If we're stuck in ASKING phase, log a special message
             if (isStuckInAsking) {
                 console.warn("Possibly stuck in ASKING phase for over 60 seconds");
-                debugLog("Stuck in ASKING phase", { 
-                    timeSinceLastUpdate: Date.now() - lastUIUpdate 
+                debugLog("Stuck in ASKING phase", {
+                    timeSinceLastUpdate: Date.now() - lastUIUpdate
                 });
             }
         }
@@ -887,8 +943,13 @@ function updatePlayerCardForPhase(player, playerCard, displayData = {}) {
     }
 }
 
+// Store original handleSubmit if it exists, otherwise define a dummy
+const originalHandleSubmit = typeof handleSubmit === 'function' ? handleSubmit : function() { console.warn("Original handleSubmit not found for wrapping"); };
 
-function handleSubmit() {
+// Wrap handleSubmit to clear validation errors
+handleSubmit = function() {
+    clearValidationError(); // Clear error first
+
     if (!gameInput || !submitButton) { console.error("Input elements missing"); return; }
     const inputValue = gameInput.value.trim();
     const currentSubmitPhase = currentPhase; // Capture phase at time of submit attempt
@@ -899,12 +960,12 @@ function handleSubmit() {
     hideMyThinkingIndicator(); // Hide indicator early
 
     if (currentSubmitPhase === 'ASKING') {
-        if (!inputValue) { alert("Please enter a question."); gameInput.disabled = false; submitButton.disabled = false; return; } // Re-enable on simple validation fail
-        if (inputValue.length > QUESTION_MAX_LENGTH) { alert(`Max ${QUESTION_MAX_LENGTH} chars.`); gameInput.disabled = false; submitButton.disabled = false; return; }
+        if (!inputValue) { /* alert("Please enter a question."); */ gameInput.disabled = false; submitButton.disabled = false; return; } // Re-enable on simple validation fail - Alert handled by server now
+        if (inputValue.length > QUESTION_MAX_LENGTH) { /* alert(`Max ${QUESTION_MAX_LENGTH} chars.`); */ gameInput.disabled = false; submitButton.disabled = false; return; } // Alert handled by server now
         console.log('Submitting question:', inputValue); socket.emit('submit_question', inputValue); submitButton.textContent = 'Sent';
     } else if (currentSubmitPhase === 'ANSWERING') {
-        if (!inputValue) { alert("Please enter an answer."); gameInput.disabled = false; submitButton.disabled = false; return; }
-        if (inputValue.length > ANSWER_MAX_LENGTH) { alert(`Max ${ANSWER_MAX_LENGTH} chars.`); gameInput.disabled = false; submitButton.disabled = false; return; }
+        if (!inputValue) { /* alert("Please enter an answer."); */ gameInput.disabled = false; submitButton.disabled = false; return; } // Alert handled by server now
+        if (inputValue.length > ANSWER_MAX_LENGTH) { /* alert(`Max ${ANSWER_MAX_LENGTH} chars.`); */ gameInput.disabled = false; submitButton.disabled = false; return; } // Alert handled by server now
         console.log('Submitting answer:', inputValue); socket.emit('submit_answer', inputValue); submitButton.textContent = 'Sent';
     } else {
          // If phase changed before submit processed, maybe don't send anything
@@ -912,7 +973,11 @@ function handleSubmit() {
           gameInput.disabled = false; // Re-enable just in case
           submitButton.disabled = false;
     }
-}
+
+    // Call the original function if needed (though in this case, the logic is fully replaced)
+    // originalHandleSubmit.apply(this, arguments);
+};
+
 
 function hideThinkingIndicator(playerId) {
     if (!playerList || !playerId) return;
@@ -1037,7 +1102,7 @@ socket.on('game_start', (initialData) => {
         const debugControls = document.createElement('div');
         debugControls.classList.add('debug-controls');
         debugControls.style.display = 'none'; // Hide by default
-        
+
         const skipButton = document.createElement('button');
         skipButton.textContent = "Skip Question";
         skipButton.classList.add('skip-question');
@@ -1047,15 +1112,15 @@ socket.on('game_start', (initialData) => {
                 socket.emit('debug_skip_question');
             }
         });
-        
+
         debugControls.appendChild(skipButton);
         gameArea.appendChild(debugControls);
-        
+
         // Add Ctrl+D shortcut to toggle debug controls
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 'd') {
                 e.preventDefault();
-                debugControls.style.display = 
+                debugControls.style.display =
                     debugControls.style.display === 'none' ? 'flex' : 'none';
             }
         });
@@ -1073,13 +1138,13 @@ socket.on('new_round_phase', (data) => {
         console.log('New Phase received:', data?.phase, data);
         debugLog('Processing new_round_phase', data);
         lastServerEvent = Date.now();
-        
+
         // Clear any existing asking phase timeout
         if (askingPhaseTimeout) {
             clearTimeout(askingPhaseTimeout);
             askingPhaseTimeout = null;
         }
-        
+
         if (!data?.phase || typeof data.duration === 'undefined') {
             console.error("Invalid phase data");
             debugLog("Invalid phase data received", data);
@@ -1090,14 +1155,14 @@ socket.on('new_round_phase', (data) => {
         const previousPhase = currentPhase;
         currentPhase = data.phase;
         hasVotedThisRound = false;
-        
+
         // Store additional state for recovery
         if (data.answers) currentAnswers = data.answers; else currentAnswers = {}; // Reset if not provided
         if (data.results) currentResults = data.results; else currentResults = {}; // Reset if not provided
         if (data.question) currentQuestion = data.question;
         if (data.askerId) currentAskerId = data.askerId || null;
         if (Array.isArray(data.players)) currentPlayers = data.players; // Update player list state
-        
+
         // Store data in DOM for recovery
         document.body.setAttribute('data-current-phase', currentPhase);
         document.body.setAttribute('data-current-round', data.round || '1');
@@ -1130,20 +1195,20 @@ socket.on('new_round_phase', (data) => {
 
         // Use the consolidated UI update function
         updatePhaseUI(data);
-        
+
         // Add safety timeout for ASKING phase with AI asker
         if (data.phase === 'ASKING' && data.askerId && data.askerId !== myPlayerId) {
             console.log("Setting up AI asking timeout detection");
-            
+
             // 35 second timeout (should trigger after server's 20-second timeout)
             askingPhaseTimeout = setTimeout(() => {
                 // Only do something if we're still in ASKING phase
                 if (currentPhase === 'ASKING') {
                     console.warn("AI asking phase seems stuck - refreshing game state");
                     debugLog("AI asking timeout triggered");
-                    
+
                     // Request current game state from server
-                    socket.emit('game_state_request', { 
+                    socket.emit('game_state_request', {
                         gameId: document.body.getAttribute('data-game-id') || socket.gameId,
                         playerId: myPlayerId
                     });
@@ -1156,7 +1221,7 @@ socket.on('new_round_phase', (data) => {
 
         // Send acknowledgment to server
         socket.emit('phase_ack');
-        
+
         console.log(`Phase transition complete: ${previousPhase} -> ${currentPhase}`);
     } catch (error) {
         console.error("Critical error handling phase change:", error);
@@ -1164,7 +1229,7 @@ socket.on('new_round_phase', (data) => {
         // Try to recover basic UI
         if (statusMessage) statusMessage.textContent = "UI Error - Attempting recovery...";
         forceUIRefresh(); // Attempt force refresh on critical error
-        
+
         // Try to recover state from DOM if possible
         recoverStateFromDOM();
     }
@@ -1174,30 +1239,30 @@ socket.on('new_round_phase', (data) => {
 function checkIfRefreshNeeded() {
     // Don't refresh if we're not in a game
     if (!isInGame) return false;
-    
+
     // Check if the phase indicator matches the current phase
     const phaseIndicator = document.querySelector('.phase-step.active');
     if (!phaseIndicator) return true;
-    
+
     // Check if the right phase is highlighted
     const indicatorClass = phaseIndicator.className;
-    const phaseMatch = 
+    const phaseMatch =
         (currentPhase === 'ASKING' && indicatorClass.includes('phase-ask')) ||
         (currentPhase === 'ANSWERING' && indicatorClass.includes('phase-answer')) ||
         (currentPhase === 'VOTING' && indicatorClass.includes('phase-vote')) ||
         (currentPhase === 'REVEAL' && indicatorClass.includes('phase-reveal'));
-    
+
     if (!phaseMatch) return true;
-    
+
     // Check if the player list is populated
     const playerElements = document.querySelectorAll('.player-card');
     if (playerElements.length === 0) return true;
-    
+
     // Check if the player list length matches current players
     if (Array.isArray(currentPlayers) && playerElements.length !== currentPlayers.length) {
         return true;
     }
-    
+
     // Everything looks ok, no refresh needed
     return false;
 }
@@ -1207,20 +1272,20 @@ function checkForDesync() {
     const now = Date.now();
     const timeSinceServerEvent = now - lastServerEvent;
     const timeSinceUIUpdate = now - lastUIUpdate;
-    
+
     // Only check if we've recently received a server event (last 10 seconds)
     if (timeSinceServerEvent < 10000) {
         // If we received an event but haven't updated the UI in 5 seconds
         if (timeSinceUIUpdate > 5000) {
             // Before forcing refresh, check if we actually need one
             const needsRefresh = checkIfRefreshNeeded();
-            
+
             if (needsRefresh) {
                 console.warn("⚠️ Possible UI desync detected. Forcing refresh...");
-                debugLog("Desync detected", { 
-                    timeSinceServerEvent, 
+                debugLog("Desync detected", {
+                    timeSinceServerEvent,
                     timeSinceUIUpdate,
-                    currentPhase 
+                    currentPhase
                 });
                 forceUIRefresh();
             } else {
@@ -1229,7 +1294,7 @@ function checkForDesync() {
             }
         }
     }
-    
+
     // Schedule the next check
     setTimeout(checkForDesync, 2000);
 }
@@ -1265,7 +1330,7 @@ function updateQuestionDisplay(data) {
             // Get the asker's emoji if available
             const asker = currentPlayers.find(p => p.id === data.askerId);
             const askerEmoji = asker?.avatarEmoji || '';
-            
+
             // Create a cleaner question display with subtle asker info
             questionDisplay.innerHTML = `
                 <span class="question-text">${data.question || '...'}</span>
@@ -1332,10 +1397,10 @@ function updatePhaseUI(data) {
         setTimeout(() => {
             // Update status message
             updateStatusMessage(data);
-            
+
             // Update question display
             updateQuestionDisplay(data);
-            
+
             // If we're in ASKING phase with AI asker, add thinking animation
             if (data.phase === 'ASKING' && data.askerId && data.askerId !== myPlayerId) {
                 const askerCard = document.querySelector(`.player-card[data-player-id="${data.askerId}"]`);
@@ -1343,24 +1408,24 @@ function updatePhaseUI(data) {
                     // Show thinking indicator
                     const thinkingSpan = askerCard.querySelector('.thinking-indicator');
                     if (thinkingSpan) thinkingSpan.style.display = 'inline-block';
-                    
+
                     // Add active-thinking class to the card
                     askerCard.classList.add('active-thinking');
                 }
             }
-            
+
             // Update player list with current data
             updateGameUI(currentPlayers, {
                 answers: currentAnswers || data.answers || {},
                 results: currentResults || data.results || {}
             });
-            
+
             // Update input area visibility
             updateInputAreaVisibility(data);
-            
+
             // Update phase indicator
             updatePhaseIndicator(data.phase);
-            
+
             debugLog('Phase UI update complete', { phase: data.phase });
         }, 10);
     } catch (error) {
@@ -1401,15 +1466,15 @@ socket.on('vote_accepted', () => {
 socket.on('force_refresh_ui', (serverState = null) => {
     console.log("Server requested UI refresh", serverState);
     debugLog("Server requested UI refresh", serverState);
-    
+
     // If server included a reason, log it
     if (serverState?.reason) {
         console.log(`Refresh reason: ${serverState.reason}`);
     }
-    
+
     // Check if we actually need a refresh first
     const needsRefresh = checkIfRefreshNeeded();
-    
+
     if (needsRefresh || serverState?.reason === 'phase_mismatch') {
         forceUIRefresh(serverState);
     } else {
@@ -1464,6 +1529,16 @@ socket.on('game_state_response', (gameState) => {
     }
 });
 
+// --- >>> NEW: Validation Error Listener <<< ---
+socket.on('validation_error', (message) => {
+    showValidationError(message);
+
+    // Re-enable input after validation error
+    if (gameInput) gameInput.disabled = false;
+    if (submitButton) submitButton.disabled = false;
+});
+// --- >>> END Validation Error Listener <<< ---
+
 // Fix 6: Add a connectivity debug function
 function checkSocketStatus() {
     const statusText = socket.connected ? "Connected" : "Disconnected";
@@ -1488,7 +1563,12 @@ function setupEventListeners() {
     const pList = getElem('player-list');
 
     if (submitBtn) { submitBtn.addEventListener('click', handleSubmit); } else { console.error("Submit btn missing"); }
-    if (gameIn) { gameIn.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); handleSubmit(); } }); } else { console.error("Input missing"); }
+    if (gameIn) {
+        gameIn.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); handleSubmit(); } });
+        // --- >>> NEW: Clear validation on input <<< ---
+        gameIn.addEventListener('input', clearValidationError);
+        // --- >>> END Clear validation on input <<< ---
+    } else { console.error("Input missing"); }
     if (pList) {
         pList.addEventListener('click', (event) => {
             const voteButton = event.target.closest('.vote-button');
@@ -1508,10 +1588,10 @@ function setupEventListeners() {
         if (document.visibilityState === 'visible') {
             console.log("Tab became visible - checking UI state");
             debugLog("Tab visibility change");
-            
+
             // Instead of forcing a refresh immediately, check if we need one first
             const needsRefresh = checkIfRefreshNeeded();
-            
+
             if (needsRefresh) {
                 console.log("UI refresh needed after tab visibility change");
                 forceUIRefresh();
@@ -1535,6 +1615,20 @@ function setupEventListeners() {
     // Start checking for desyncs after a short delay
     setTimeout(checkForDesync, 5000);
 }
+
+// --- >>> NEW: Inject Animation Styles <<< ---
+const styleElement = document.createElement('style');
+styleElement.textContent = `
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeOut {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-10px); }
+}`;
+document.head.appendChild(styleElement);
+// --- >>> END Inject Animation Styles <<< ---
 
 // Initial setup & Connection Check
 // Defer setup until DOM is loaded

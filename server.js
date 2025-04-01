@@ -49,6 +49,175 @@ function generateSocketLikeId() {
     return result;
 }
 
+// --- >>> NEW: Message Moderation <<< ---
+
+/**
+ * Strict English language detection
+ * Checks if text contains almost exclusively Latin characters
+ */
+function isLikelyEnglish(text) {
+  // No exemption for short texts - check all text regardless of length
+  if (!text || typeof text !== 'string') return false; // Basic validation
+
+  // Count non-Latin characters (allows basic Latin, numbers, punctuation and common symbols)
+  const nonLatinCharCount = text.replace(/[a-zA-Z0-9\s.,!?;:'"()&$#@%*+-]/g, '').length;
+
+  // Handle potential division by zero for empty strings after replacement
+  if (text.length === 0) return true; // Consider empty string as "English" for this check
+
+  // If more than 1% of characters are non-Latin, probably not English
+  // This is a very strict check that requires almost exclusively Latin characters
+  return (nonLatinCharCount / text.length) < 0.01;
+}
+
+// Comprehensive list of inappropriate words, including variations and substitutions
+const INAPPROPRIATE_WORDS = [
+  // Common profanity
+  'fuck', 'fuk', 'fck', 'fuq', 'f*ck', 'f**k', 'f@ck', 'fu*k', 'phuck', 'fvck',
+  'shit', 'sh*t', 'sh!t', 'shyt', 'sh1t', 's**t', '$hit', 'shiz',
+  'bitch', 'b*tch', 'b!tch', 'b1tch', 'biatch', 'bytch', 'b*ch',
+  'ass', 'a$$', 'a**', '@ss', 'a$s', 'azz', 'a55', 'a*s',
+  'cock', 'c0ck', 'cok', 'c*ck', 'c**k', 'c0k', 'cawk',
+  'dick', 'd*ck', 'd1ck', 'd!ck', 'dic', 'dik', 'd**k', 'd1k',
+  'pussy', 'p*ssy', 'pu$$y', 'pus*y', 'pu**y', 'pussi', 'p**sy', 'p0ssy',
+  'cunt', 'c*nt', 'cvnt', 'c**t', 'kunt', 'kant',
+  'whore', 'wh*re', 'w**re', 'h0e', 'hoe', 'ho',
+  'slut', 'sl*t', '$lut', 's1ut', 'sl00t',
+  'bastard', 'b@stard', 'bast*rd', 'b**tard',
+  'damn', 'd*mn', 'dman', 'damm', 'dam',
+  'piss', 'p*ss', 'p1ss', 'pi$$', 'pis',
+  'crap', 'cr@p', 'cr*p', 'crxp',
+  'prick', 'pr*ck', 'prik', 'pr1ck',
+  'poon', 'p00n', 'p*on',
+  'wank', 'w@nk', 'w*nk', 'w4nk',
+  'cum', 'c*m', 'cvm', 'coom',
+  'jizz', 'j*zz', 'jiz', 'j1zz',
+  'fag', 'f@g', 'f*g', 'fagg', 'f4g',
+  'anal', '@nal', 'an@l', 'an*l',
+  'blowjob', 'blow*', 'bj',
+  'handjob', 'handj*', 'hj',
+  'jerking', 'jerk*',
+  'jackoff', 'jack*',
+  'rimjob', 'rimj*',
+
+  // Racial/identity slurs (general patterns without listing actual slurs)
+  'n*gg', 'n1gg', 'nigg', 'nig',
+  'ch*nk', 'chink',
+  'sp*c', 'sp1c',
+  'k*ke', 'k1ke',
+  'f*ggot', 'faggot', 'fagot', 'f4ggot',
+  'tr*nny', 'tr4nny',
+  'r*tard', 'ret*rd', 'retard',
+
+  // Violent/disturbing content
+  'rape', 'r@pe', 'r*pe', 'r4pe',
+  'kill', 'k*ll', 'k1ll',
+  'murder', 'murd*r',
+  'suicide', 'su*cide', 'suic*de',
+
+  // Phrases or combined words
+  'gtfo', 'stfu', 'wtf', 'f you', 'fu ', 'af ', 'fck you', 'fcku',
+  'go die', 'kys', 'kms',
+
+  // Commonly filtered words in games
+  'hitler', 'nazi', 'terrorist',
+  'molest', 'pedophile', 'pedo'
+];
+
+/**
+ * Advanced inappropriate content detection
+ * Checks text against a comprehensive list of inappropriate words and patterns
+ */
+function containsInappropriateContent(text) {
+  if (!text || typeof text !== 'string') return false; // Basic validation
+  // Convert to lowercase for case-insensitive matching
+  const lowerText = text.toLowerCase();
+
+  // Remove spaces for detecting words that might be s p a c e d out
+  const noSpaceText = lowerText.replace(/\s+/g, '');
+
+  // First check the spaced out text
+  for (const word of INAPPROPRIATE_WORDS) {
+    // Only check words long enough to be meaningful in spaced-out form
+    if (word.length >= 3 && noSpaceText.includes(word)) {
+      console.log(`Inappropriate content (spaced): "${word}" in "${text}"`);
+      return true;
+    }
+  }
+
+  // Check for words with word boundaries (more precise matching)
+  for (const word of INAPPROPRIATE_WORDS) {
+    if (word.length >= 3) {
+      // Create a regex that matches word boundaries or the word at start/end of text
+      // Escape special regex characters in the word itself
+      const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(^|\\W)${escapedWord}(\\W|$)`, 'i');
+      if (regex.test(lowerText)) {
+        console.log(`Inappropriate content (boundary): "${word}" in "${text}"`);
+        return true;
+      }
+    }
+  }
+
+  // Check for "leetspeak" style replacements (e.g., numbers for letters)
+  // These patterns are simplified examples and might need refinement
+  const leetRegexPatterns = [
+    /[f]+[^a-z0-9\s]*[u]+[^a-z0-9\s]*[c]+[^a-z0-9\s]*[k]+/i,   // Variations of "fuck"
+    /[s]+[^a-z0-9\s]*[h]+[^a-z0-9\s]*[i]+[^a-z0-9\s]*[t]+/i,   // Variations of "shit"
+    /[b]+[^a-z0-9\s]*[i]+[^a-z0-9\s]*[t]+[^a-z0-9\s]*[c]+[^a-z0-9\s]*[h]+/i,  // Variations of "bitch"
+    /[a]+[^a-z0-9\s]*[s]+[^a-z0-9\s]*[s]+/i,   // Variations of "ass"
+    /[n]+[^a-z0-9\s]*[i]+[^a-z0-9\s]*[g]+[^a-z0-9\s]*[g]+/i,   // Variations of racial slurs (example)
+    // Add more patterns as needed
+  ];
+
+  for (const pattern of leetRegexPatterns) {
+    if (pattern.test(lowerText)) {
+       console.log(`Inappropriate content (leet): Pattern ${pattern} matched in "${text}"`);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Moderates a player message, checking for language and inappropriate content
+ * @param {string} message - The message to moderate
+ * @param {object} socket - The player's socket to send error messages (can be null for AI)
+ * @returns {boolean} - True if message passes moderation, false otherwise
+ */
+function moderateMessage(message, socket) {
+  // Skip moderation for empty or non-string messages
+  if (!message || typeof message !== 'string' || message.trim().length === 0) {
+    // This case should ideally be caught by length validation first, but good to have a check
+    return false;
+  }
+
+  // 1. Check if message is likely in English
+  if (!isLikelyEnglish(message)) {
+    console.log(`Non-English message detected: "${message}"`);
+    if (socket) { // Only emit if a socket is provided (human player)
+        socket.emit('validation_error', "Sorry, only English is supported yet!"); // Use specific event
+    }
+    return false;
+  }
+
+  // 2. Check for inappropriate content
+  if (containsInappropriateContent(message)) {
+    console.log(`Inappropriate content detected in message: "${message}"`);
+    if (socket) { // Only emit if a socket is provided (human player)
+        socket.emit('validation_error', "Please, respect other players and AI"); // Use specific event
+    }
+    return false;
+  }
+
+  // Passed all checks
+  return true;
+}
+
+// --- >>> END Message Moderation <<< ---
+
+
 // --- >>> NEW: Add timeout constants <<< ---
 const FIRST_ATTEMPT_TIMEOUT = 15000; // 15 seconds for the first try
 const RETRY_TIMEOUT = 10000; // 10 seconds for the retry
@@ -493,10 +662,39 @@ class GameSession {
     }
 
     // Action Handlers (keep as before)
-    handlePlayerQuestion(playerId, questionText) { /* ... */ if(this.currentPhase!=='ASKING'||playerId!==this.currentAskerId)return; if(typeof questionText!=='string'||questionText.length===0||questionText.length>QUESTION_MAX_LENGTH){const s=this.players.find(p=>p.id===playerId)?.socket;if(s)s.emit('action_error',{message:`Q len`});return;} this.currentQuestion=questionText.trim();console.log(`Q Acc: "${this.currentQuestion}"`); if(this.activeTimers.phaseTimeout)clearTimeout(this.activeTimers.phaseTimeout);this.startPhase('ANSWERING'); }
+    handlePlayerQuestion(playerId, questionText) {
+        // Get existing checks
+        if (this.currentPhase !== 'ASKING' || playerId !== this.currentAskerId) return;
+
+        // Find the player and socket
+        const player = this.players.find(p => p.id === playerId);
+        if (!player || !player.socket) return; // Should not happen for human asker
+
+        // Length validation (keep existing validation)
+        if (typeof questionText !== 'string' ||
+            questionText.length === 0 ||
+            questionText.length > QUESTION_MAX_LENGTH) {
+            player.socket.emit('action_error', { message: `Question must be between 1-${QUESTION_MAX_LENGTH} characters` });
+            return;
+        }
+
+        // --- >>> Add moderation check <<< ---
+        if (!moderateMessage(questionText, player.socket)) {
+            return; // Early return if moderation fails
+        }
+        // --- >>> END moderation check <<< ---
+
+        // If we get here, message passed moderation
+        this.currentQuestion = questionText.trim();
+        console.log(`Game ${this.id}: Question accepted from ${player.name}: "${this.currentQuestion}"`);
+
+        // Continue with phase change
+        if (this.activeTimers.phaseTimeout) clearTimeout(this.activeTimers.phaseTimeout);
+        this.startPhase('ANSWERING');
+    }
     handleAskTimeout() {
         if (this.currentPhase === 'ASKING') {
-            console.log(`Asker ${this.currentAskerId} timed out.`);
+            console.log(`Game ${this.id}: Asker ${this.currentAskerId} timed out.`);
             
             // Use a better fallback question
             const fallbackQuestions = [
@@ -516,8 +714,57 @@ class GameSession {
             this.startPhase('ANSWERING');
         }
     }
-    handlePlayerAnswer(playerId, answerText) { /* ... */ const p=this.players.find(pl=>pl.id===playerId);if(this.currentPhase!=='ANSWERING'||!p||p.status!=='active'||playerId===this.currentAskerId||this.answers.has(playerId))return;if(typeof answerText!=='string'||answerText.length===0||answerText.length>ANSWER_MAX_LENGTH){if(p.socket)p.socket.emit('action_error',{message:`Ans len`});return;} this.answers.set(playerId,answerText.trim());console.log(`Ans Acc from ${playerId}. Total:${this.answers.size}`);this.checkIfPhaseComplete();}
-    handleAnswerTimeout() { /* ... */ if(this.currentPhase==='ANSWERING'){console.log(`Ans timeout.`);const act=this.players.filter(p=>p.status==='active');act.forEach(p=>{if(p.id!==this.currentAskerId && !this.answers.has(p.id)){console.log(`${p.name} no ans.`);this.answers.set(p.id,"(No answer)");}});this.startPhase('VOTING');}}
+    handlePlayerAnswer(playerId, answerText) {
+        const player = this.players.find(pl => pl.id === playerId);
+
+        // Existing checks
+        if (this.currentPhase !== 'ANSWERING' || !player || player.status !== 'active' || playerId === this.currentAskerId || this.answers.has(playerId)) {
+            return;
+        }
+
+        // Length validation
+        if (typeof answerText !== 'string' || answerText.length === 0 || answerText.length > ANSWER_MAX_LENGTH) {
+            // Only send error to human players
+            if (player.socket) {
+                player.socket.emit('action_error', { message: `Answer must be between 1-${ANSWER_MAX_LENGTH} characters` });
+            }
+            // For AI, we might log this or handle it differently, but for now, just return
+            console.warn(`Game ${this.id}: Invalid answer length from ${player.name} (ID: ${playerId}). Length: ${answerText?.length}`);
+            return;
+        }
+
+        // --- >>> Add moderation check <<< ---
+        // Pass player.socket only if it's a human player
+        if (!moderateMessage(answerText, player.isHuman ? player.socket : null)) {
+            // If moderation fails for an AI, set a generic placeholder instead of returning
+            if (!player.isHuman) {
+                console.log(`Game ${this.id}: AI ${player.name}'s answer failed moderation. Setting placeholder.`);
+                this.answers.set(playerId, "(Answer Blocked)");
+                this.checkIfPhaseComplete(); // Still check completion
+            }
+            // For humans, the error is emitted inside moderateMessage, so just return
+            return;
+        }
+        // --- >>> END moderation check <<< ---
+
+        // If we get here, message passed moderation
+        this.answers.set(playerId, answerText.trim());
+        console.log(`Game ${this.id}: Answer accepted from ${player.name}. Total answers: ${this.answers.size}`);
+        this.checkIfPhaseComplete();
+    }
+    handleAnswerTimeout() {
+        if (this.currentPhase === 'ANSWERING') {
+            console.log(`Game ${this.id}: Answer phase timed out.`);
+            const activePlayers = this.players.filter(p => p.status === 'active');
+            activePlayers.forEach(p => {
+                if (p.id !== this.currentAskerId && !this.answers.has(p.id)) {
+                    console.log(`Game ${this.id}: ${p.name} did not submit an answer.`);
+                    this.answers.set(p.id, "(No answer)");
+                }
+            });
+            this.startPhase('VOTING');
+        }
+    }
     handlePlayerVote(voterId, votedId) {
         console.log(`Game ${this.id}: Received vote attempt from ${voterId} for ${votedId}`);
         const voter = this.players.find(p => p.id === voterId);

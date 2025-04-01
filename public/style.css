@@ -529,9 +529,9 @@ a[href="https://jam.pieter.com"] { z-index: 10000 !important; }
 }
 
 /* Define specific colors for each phase when active */
-.phase-ask.active { 
+.phase-ask.active {
     background-color: var(--color-status-ask); /* Amber for asking */
-    color: black; 
+    color: black;
 }
 /* Fix for Answer phase colors */
 .phase-answer.active {
@@ -544,9 +544,9 @@ a[href="https://jam.pieter.com"] { z-index: 10000 !important; }
 .phase-step.phase-answer.active {
     background-color: var(--color-accent) !important;
 }
-.phase-vote.active { 
+.phase-vote.active {
     background-color: var(--color-status-vote); /* Red for voting */
-    color: white; 
+    color: white;
 }
 .phase-reveal.active {
     background-color: var(--color-success ) !important; /* Changed from gray to green */
@@ -713,13 +713,13 @@ body.phase-reveal .phase-reveal {
   .page-footer {
     padding: 1rem;
   }
-  
+
   .footer-content {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
   }
-  
+
   .social-links {
     margin-left: 0;
   }
@@ -833,3 +833,27 @@ body.phase-reveal .phase-reveal {
 .player-card .player-details:after {
     display: none !important;
 }
+
+/* --- >>> NEW: Validation Error Styles <<< --- */
+
+/* Validation Error Styling */
+#validation-error {
+    color: #e53e3e;  /* Red text */
+    margin-top: 8px;
+    font-size: 0.9rem;
+    text-decoration: underline;
+    font-weight: 500;
+    padding-left: 4px;
+}
+
+/* Animations for error message (already defined above, but ensure they exist) */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-10px); }
+}
+/* --- >>> END Validation Error Styles <<< --- */
