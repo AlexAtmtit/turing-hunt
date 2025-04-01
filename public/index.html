@@ -42,8 +42,7 @@
 <!-- Add this new section ABOVE the rules box -->
 <div id="invite-section" class="invite-section">
     <div class="dropdown">
-        <button id="invite-button" class="invite-button">
-            <span class="invite-icon">🔗</span> Invite Friends
+        <button id="invite-button" class="invite-button"> Invite Friends
         </button>
         <div id="share-dropdown" class="share-dropdown">
             <a href="#" id="share-twitter" class="share-option"><span>Twitter/X</span></a>
@@ -52,9 +51,11 @@
         </div>
     </div>
     <span id="copy-confirmation" class="copy-confirmation">Link copied! ✓</span>
+    <span class="invite-or">or</span>
+    <button id="solo-survival-button" class="solo-button">🔥 Try Solo Survival</button>
 </div>
 
-<!-- Rules Box (remains unchanged) -->
+<!-- Rules Box (Standard Multiplayer) -->
 <div id="rules-box">
     <h2>What are the rules again?</h2>
             <ul>
@@ -62,6 +63,16 @@
                 <li>🎯 <strong>Humans:</strong> Eliminate all AI. <strong>AI:</strong> Eliminate all Humans.</li>
                 <li>💬 <strong>Each round:</strong> Ask a question ➡️ Answer ➡️ Vote to eliminate.</li>
                 <li>🤖 AI actions are controlled by AI.</li>
+            </ul>
+        </div>
+
+        <!-- Rules Box (Solo Survival - Hidden by default) -->
+        <div id="rules-box-solo" style="display: none;">
+            <h2>Solo Survival Rules</h2>
+            <ul>
+                <li>🎯 <strong>Human:</strong> Survive for 3 rounds | <strong>AI:</strong> Eliminate Human</li>
+                <li>💬 Ask ➡️ Answer ➡️ Vote to remove AI</li>
+                <li>🤔 Give smart answers to survive</li>
             </ul>
         </div>
 

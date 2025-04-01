@@ -123,9 +123,12 @@ const inputLabel = getElem('input-label');
 const gameInput = getElem('game-input');
 const submitButton = getElem('submit-button');
 const rulesBox = getElem('rules-box');
+const rulesBoxSolo = getElem('rules-box-solo'); // Add reference for solo rules
+const rulesBoxGame = getElem('rules-box-game'); // Add reference for in-game rules
 
 // --- Client State ---
 let isInGame = false;
+let isSoloMode = false; // Flag for Solo Survival mode
 let myPlayerId = null;
 let currentPlayers = [];
 let currentPhase = null;
@@ -361,6 +364,9 @@ function attemptStateRecovery() {
 
     // If we're in a game but UI seems wrong
     if (isInGame && myPlayerId) {
+        // Reset solo mode flag if not in game (safety)
+        if (!isInGame) isSoloMode = false;
+
         // Check if phase indicator is set correctly
         const activePhaseStep = document.querySelector('.phase-step.active');
         const hasPhaseIndicator = !!activePhaseStep;
@@ -1109,8 +1115,11 @@ socket.on('connect', () => {
     if (gameArea) gameArea.style.display = 'none'; if (inputArea) inputArea.style.display = 'none'; if (playerList) playerList.innerHTML = '';
     if (questionDisplay) questionDisplay.textContent = ''; if (answerArea) answerArea.innerHTML = ''; stopTimer();
     if (statusMessage) statusMessage.innerHTML = 'Connected! Waiting...'; // Clear any previous dots
-    if (rulesBox) rulesBox.style.display = 'block';
+    if (rulesBox) rulesBox.style.display = 'block'; // Show standard rules when waiting
+    if (rulesBoxSolo) rulesBoxSolo.style.display = 'none'; // Hide solo rules
+    if (rulesBoxGame) rulesBoxGame.style.display = 'none'; // Hide game rules
     document.body.classList.remove('game-over');
+    isSoloMode = false; // Reset solo mode on connect
     // Initial phase indicator state (optional, could be set by first phase event)
     updatePhaseIndicator(null);
 });
@@ -1119,8 +1128,11 @@ socket.on('disconnect', (reason) => {
     // debugLog and updateConnectionStatus are handled by enhanceSocketLogging
     console.log('Socket disconnect event fired:', reason); // Keep basic console log
     if (statusMessage) statusMessage.innerHTML = 'Disconnected. Trying to reconnect...'; // Updated message
-    isInGame = false; currentPhase = null; currentAskerId = null; hasVotedThisRound = false; eliminatedPlayerRoles = {};
-    if (gameArea) gameArea.style.display = 'none'; if (inputArea) inputArea.style.display = 'none'; if (rulesBox) rulesBox.style.display = 'none';
+    isInGame = false; currentPhase = null; currentAskerId = null; hasVotedThisRound = false; eliminatedPlayerRoles = {}; isSoloMode = false; // Reset solo mode on disconnect
+    if (gameArea) gameArea.style.display = 'none'; if (inputArea) inputArea.style.display = 'none';
+    if (rulesBox) rulesBox.style.display = 'none'; // Hide all rules boxes on disconnect
+    if (rulesBoxSolo) rulesBoxSolo.style.display = 'none';
+    if (rulesBoxGame) rulesBoxGame.style.display = 'none';
     stopTimer();
     // Clear phase indicator on disconnect
     updatePhaseIndicator(null);
@@ -1132,17 +1144,22 @@ socket.on('connect_error', (error) => {
     debugLog('Socket Connection Error', { error: error.message }); // Use debugLog
     console.error('Socket Connection Error:', error); // Keep console error
     if (statusMessage) statusMessage.innerHTML = 'Connection Failed.';
-    isInGame = false; currentPhase = null; currentAskerId = null; hasVotedThisRound = false; eliminatedPlayerRoles = {};
-    if (rulesBox) rulesBox.style.display = 'none'; stopTimer();
+    isInGame = false; currentPhase = null; currentAskerId = null; hasVotedThisRound = false; eliminatedPlayerRoles = {}; isSoloMode = false; // Reset solo mode on error
+    if (rulesBox) rulesBox.style.display = 'none'; // Hide all rules boxes on error
+    if (rulesBoxSolo) rulesBoxSolo.style.display = 'none';
+    if (rulesBoxGame) rulesBoxGame.style.display = 'none';
+    stopTimer();
 });
 
 socket.on('waiting_player_count', (count) => {
     if (!isInGame && statusMessage) {
-        const maxPlayers = 3;
+        const maxPlayers = 3; // Keep this for the message, even if solo exists
         statusMessage.innerHTML = `Waiting for Human Players (${count}/${maxPlayers}<span class="waiting-dots"></span>)<br>Game starts when 3 humans join.`;
-        if (rulesBox) rulesBox.style.display = 'block';
+        if (rulesBox) rulesBox.style.display = 'block'; // Show standard rules
+        if (rulesBoxSolo) rulesBoxSolo.style.display = 'none'; // Hide solo rules
+        if (rulesBoxGame) rulesBoxGame.style.display = 'none'; // Hide game rules
         if (gameArea) gameArea.style.display = 'none';
-        
+
         // Show invite section when waiting
         const inviteSection = document.getElementById('invite-section');
         if (inviteSection) inviteSection.style.display = 'block';
@@ -1163,6 +1180,7 @@ socket.on('game_start', (initialData) => {
     isInGame = true;
     myPlayerId = initialData.yourPlayerId;
     currentPlayers = initialData.players;
+    isSoloMode = initialData.isSolo || false; // Check for solo mode flag from server
 
     // Clear all state variables
     currentPhase = null;
@@ -1186,8 +1204,18 @@ socket.on('game_start', (initialData) => {
     if (inputArea) inputArea.style.display = 'none';
     if (answerArea) answerArea.innerHTML = '';
     if (questionDisplay) questionDisplay.textContent = '';
-    if (rulesBox) rulesBox.style.display = 'none';
-    
+
+    // Show the correct rules box based on mode
+    if (isSoloMode) {
+        if (rulesBox) rulesBox.style.display = 'none';
+        if (rulesBoxSolo) rulesBoxSolo.style.display = 'block'; // Show solo rules at start
+        if (rulesBoxGame) rulesBoxGame.style.display = 'none';
+    } else {
+        if (rulesBox) rulesBox.style.display = 'none'; // Hide standard rules during game
+        if (rulesBoxSolo) rulesBoxSolo.style.display = 'none';
+        if (rulesBoxGame) rulesBoxGame.style.display = 'block'; // Show game rules
+    }
+
     // Hide invite section when game starts
     const inviteSection = document.getElementById('invite-section');
     if (inviteSection) inviteSection.style.display = 'none';
@@ -1295,7 +1323,10 @@ socket.on('new_round_phase', (data) => {
         if (inputArea) inputArea.style.display = 'none';
         if (gameInput) { gameInput.disabled = false; gameInput.value = ''; }
         if (submitButton) { submitButton.disabled = false; }
+        // Hide all rules boxes during phase transitions, updatePhaseUI will show the correct one
         if (rulesBox) rulesBox.style.display = 'none';
+        if (rulesBoxSolo) rulesBoxSolo.style.display = 'none';
+        if (rulesBoxGame) rulesBoxGame.style.display = 'none';
         if (statusMessage && statusMessage.querySelector('.waiting-dots')) {
             statusMessage.textContent = statusMessage.textContent;
         }
@@ -1420,7 +1451,13 @@ function updateStatusMessage(data) {
     try {
         if (!statusMessage) return;
 
-        let statusText = `Round ${data.round || '?'}: `;
+        let statusText = '';
+        if (isSoloMode) {
+            statusText = `Round ${data.round || '?'}/3: `; // Show round progress out of 3
+        } else {
+            statusText = `Round ${data.round || '?'}: `;
+        }
+
         if (currentPhase === 'ASKING') {
             statusText += `${data.askerName || '?'} is asking<span class="waiting-dots"></span>`;
         }
@@ -1542,6 +1579,13 @@ function updatePhaseUI(data) {
             // Update phase indicator
             updatePhaseIndicator(data.phase);
 
+            // Show/Hide correct rules box for the phase
+            if (isSoloMode) {
+                if (rulesBoxSolo) rulesBoxSolo.style.display = 'block'; // Keep solo rules visible
+            } else {
+                if (rulesBoxGame) rulesBoxGame.style.display = 'block'; // Keep game rules visible
+            }
+
             debugLog('Phase UI update complete', { phase: data.phase });
         }, 10);
     } catch (error) {
@@ -1562,8 +1606,36 @@ socket.on('player_update', (data) => {
     if (data?.players) { currentPlayers = data.players; updateGameUI(currentPlayers); } // Use consolidated update
 });
 socket.on('game_over', (data) => {
-    if (!isInGame) return; console.log("Game Over:", data); isInGame = false; currentPhase = null; currentAskerId = null; hasVotedThisRound = false; eliminatedPlayerRoles = {}; stopTimer();
-    if (inputArea) inputArea.style.display = 'none'; if (statusMessage) statusMessage.innerHTML = `Game Over! ${data?.reason || ''}`; document.body.classList.add('game-over'); if (rulesBox) rulesBox.style.display = 'none';
+    if (!isInGame) return;
+    console.log("Game Over:", data);
+    isInGame = false;
+    currentPhase = null;
+    currentAskerId = null;
+    hasVotedThisRound = false;
+    eliminatedPlayerRoles = {};
+    stopTimer();
+
+    if (inputArea) inputArea.style.display = 'none';
+    if (statusMessage) {
+        let gameOverMsg = `Game Over! ${data?.reason || ''}`;
+        if (isSoloMode) {
+            if (data?.soloOutcome === 'survived') {
+                gameOverMsg = "🎉 You Survived! 🎉";
+            } else if (data?.soloOutcome === 'eliminated') {
+                gameOverMsg = "☠️ You Were Eliminated ☠️";
+            } else {
+                gameOverMsg = `Solo Game Over! ${data?.reason || ''}`; // Fallback
+            }
+        }
+        statusMessage.innerHTML = gameOverMsg;
+    }
+    document.body.classList.add('game-over');
+    // Hide all rules boxes on game over
+    if (rulesBox) rulesBox.style.display = 'none';
+    if (rulesBoxSolo) rulesBoxSolo.style.display = 'none';
+    if (rulesBoxGame) rulesBoxGame.style.display = 'none';
+
+    isSoloMode = false; // Reset solo mode flag
 });
 socket.on('action_error', (data) => {
     console.warn("Action Err:", data); if (data?.message) alert(`Err: ${data.message}`);
@@ -1677,8 +1749,16 @@ function setupEventListeners() {
     const submitBtn = getElem('submit-button');
     const gameIn = getElem('game-input');
     const pList = getElem('player-list');
+    const soloBtn = getElem('solo-survival-button'); // Get the solo button
 
     if (submitBtn) { submitBtn.addEventListener('click', handleSubmit); } else { console.error("Submit btn missing"); }
+    if (soloBtn) { // Add listener for solo button
+        soloBtn.addEventListener('click', () => {
+            console.log("Solo Survival button clicked");
+            if (statusMessage) statusMessage.innerHTML = 'Starting Solo Game...';
+            socket.emit('start_solo_game');
+        });
+    } else { console.error("Solo button missing"); }
     if (gameIn) {
         gameIn.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); handleSubmit(); } });
         // --- >>> NEW: Clear validation on input <<< ---

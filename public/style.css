@@ -866,7 +866,7 @@ body.phase-reveal .phase-reveal {
     position: relative;
 }
 
-/* Dropdown container */
+/* Dropdown container - Added position: relative */
 .dropdown {
     position: relative;
     display: inline-block;
@@ -929,18 +929,50 @@ body.phase-reveal .phase-reveal {
     text-decoration: none;
 }
 
+/* Repositioned copy confirmation (original style) */
 .copy-confirmation {
-    display: none;
-    color: var(--color-success);
+    display: none; /* Keep hidden by default */
     position: absolute;
-    left: 160px; /* Position beside the button */
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 0.9rem;
-    animation: fadeOut 2s forwards;
-    animation-delay: 2s;
+    bottom: 100%; /* Position above the relative parent (.dropdown) */
+    left: 50%;
+    transform: translateX(-50%); /* Center horizontally */
+    margin-bottom: 4px; /* Space above the button */
+    color: var(--color-success); /* Original green color */
+    font-size: 0.9rem; /* Original font size */
+    font-weight: normal; /* Revert font weight if changed */
     white-space: nowrap;
+    z-index: 1001; /* Ensure it's above the button/dropdown */
+    /* Background, padding, border-radius removed to restore original look */
+    /* Animation is handled by JS */
 }
+
+/* Style for the 'or' text */
+.invite-or {
+    margin: 0 0.75rem;
+    color: var(--color-text-subtle);
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+/* Style for the Solo Survival button */
+.solo-button {
+    background-color: #1E1E1E; /* Black background */
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    padding: 0.6em 1.2em;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.solo-button:hover {
+    background-color: #333; /* Darker gray on hover */
+}
+
 
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-10px); }

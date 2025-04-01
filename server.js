@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, 'public')));
 /* ... keep generateUniqueName, generateAvatarData, shuffleArray ... */
 const ADJECTIVES = ["Quick", "Lazy", "Sleepy", "Noisy", "Hungry", "Clever", "Brave", "Shiny", "Happy", "Grumpy"]; const NOUNS = ["Fox", "Dog", "Cat", "Mouse", "Bear", "Lion", "Tiger", "Robot", "Alien", "Ghost"]; const usedNames = new Set(); function generateUniqueName() { let n,a=0; do { const j=ADJECTIVES[~~(Math.random()*ADJECTIVES.length)],o=NOUNS[~~(Math.random()*NOUNS.length)]; n=`${j}${o}${ ~~(Math.random()*100)}`; a++; } while(usedNames.has(n) && a<50); usedNames.add(n); return n;} const SHAPES=['circle','square','triangle']; const COLORS=['#FF6B6B', '#4ECDC4', '#45B7D1', '#FED766', '#8AEEF4', '#F8AFA6', '#F1EFA5', '#ABE9B3']; function generateAvatarData(){return{shape:SHAPES[~~(Math.random()*SHAPES.length)],color1:COLORS[~~(Math.random()*COLORS.length)],color2:COLORS[~~(Math.random()*COLORS.length)],eyeStyle:Math.random()>0.5?'dots':'lines'};} function shuffleArray(a){for(let i=a.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}}
-const MAX_PLAYERS_FOR_GAME = 3; const AI_PLAYER_COUNT = 3; const TOTAL_PLAYERS = MAX_PLAYERS_FOR_GAME + AI_PLAYER_COUNT; const ROUND_PHASE_DURATION = { ASKING: 30, ANSWERING: 30, VOTING: 30, REVEAL: 5 }; const QUESTION_MAX_LENGTH = 40; const ANSWER_MAX_LENGTH = 100;
+const MAX_PLAYERS_FOR_GAME = 3; const DEFAULT_AI_PLAYER_COUNT = 3; const SOLO_AI_PLAYER_COUNT = 5; const TOTAL_PLAYERS_MULTIPLAYER = MAX_PLAYERS_FOR_GAME + DEFAULT_AI_PLAYER_COUNT; const TOTAL_PLAYERS_SOLO = 1 + SOLO_AI_PLAYER_COUNT; const ROUND_PHASE_DURATION = { ASKING: 30, ANSWERING: 30, VOTING: 30, REVEAL: 5 }; const QUESTION_MAX_LENGTH = 40; const ANSWER_MAX_LENGTH = 100; const SOLO_TARGET_ROUNDS = 3;
 
 // Server State (keep as before)
 const waitingPlayers = new Set(); const activeGames = new Map(); let nextGameId = 1;
@@ -230,7 +230,22 @@ class GameSession {
     AI_ATTEMPT_TIMEOUT = this.ORIGINAL_AI_ATTEMPT_TIMEOUT; // Current timeout (can be adjusted)
     // --- >>> END MOVE <<< ---
 
-    constructor(gameId, humanSockets) { /* ... */ this.id = gameId; this.roomName = `game-${gameId}`; this.players = []; this.humanSockets = humanSockets; this.aiPlayers = []; this.currentRound = 0; this.currentPhase = null; this.currentAskerId = null; this.currentQuestion = null; this.answers = new Map(); this.votes = new Map(); this.activeTimers = { phaseTimeout: null }; this.phaseAcknowledgments = new Set();
+    constructor(gameId, humanSockets, isSolo = false) {
+        this.id = gameId;
+        this.roomName = `game-${gameId}`;
+        this.players = [];
+        this.humanSockets = Array.isArray(humanSockets) ? humanSockets : [humanSockets]; // Ensure it's an array
+        this.aiPlayers = [];
+        this.currentRound = 0;
+        this.currentPhase = null;
+        this.currentAskerId = null;
+        this.currentQuestion = null;
+        this.answers = new Map();
+        this.votes = new Map();
+        this.activeTimers = { phaseTimeout: null };
+        this.phaseAcknowledgments = new Set();
+        this.isSoloMode = isSolo; // Set solo mode flag
+        this.targetRounds = isSolo ? SOLO_TARGET_ROUNDS : Infinity; // Set target rounds for solo
 
         // --- Add timeout constants with original values (Done above class properties now)
 
@@ -242,8 +257,10 @@ class GameSession {
         
         // Add a safety timeout for AI question generation
         this.aiQuestionTimeout = null;
-        
-        console.log(`Creating GameSession ${this.id}`); this.initializePlayers(); }
+
+        console.log(`Creating GameSession ${this.id} (Solo: ${this.isSoloMode})`);
+        this.initializePlayers();
+    }
 
     // Add a method to reset the AI attempt timeout to its original value
     // This should be called at the beginning of each phase to ensure we start fresh
@@ -254,7 +271,7 @@ class GameSession {
 
     initializePlayers() {
         usedNames.clear();
-        const humanPlayerData = this.humanSockets.map(socket => ({
+        const humanPlayerData = this.humanSockets.map(socket => ({ // Already handles single or multiple sockets
             id: socket.id,
             socket,
             isHuman: true,
@@ -263,8 +280,9 @@ class GameSession {
             status: 'active'
         }));
 
+        const aiCount = this.isSoloMode ? SOLO_AI_PLAYER_COUNT : DEFAULT_AI_PLAYER_COUNT;
         const aiPlayerData = [];
-        for (let i = 0; i < AI_PLAYER_COUNT; i++) {
+        for (let i = 0; i < aiCount; i++) {
             aiPlayerData.push({
                 id: generateSocketLikeId(), // Use the new function for AI IDs
                 socket: null,
@@ -287,12 +305,28 @@ class GameSession {
             name: p.name,
             avatarEmoji: p.avatarEmoji,
             status: p.status
+            // DO NOT SEND isHuman or isSoloMode here - client derives solo from game_start
         }));
     }
 
     // --- Game Loop Logic ---
     startGameLoop() { this.startNextRound(); }
-    startNextRound() { /* ... keep checkGameEnd() call */ if (this.checkGameEnd()) return; this.currentRound++; this.currentAskerId = null; this.currentQuestion = null; this.answers.clear(); this.votes.clear(); this.players.forEach(p => p.hasVoted = false); console.log(`\n--- Game ${this.id}: Starting Round ${this.currentRound} ---`); this.startPhase('ASKING'); }
+    startNextRound() {
+        // Check game end *before* incrementing round, especially for solo mode target rounds
+        if (this.checkGameEnd()) return;
+
+        // For solo mode, check if the *next* round would exceed the target *after* this round completes
+        // This check is now primarily handled within checkGameEnd after the reveal phase
+
+        this.currentRound++;
+        this.currentAskerId = null;
+        this.currentQuestion = null;
+        this.answers.clear();
+        this.votes.clear();
+        this.players.forEach(p => p.hasVoted = false);
+        console.log(`\n--- Game ${this.id}: Starting Round ${this.currentRound} (Solo: ${this.isSoloMode}, Target: ${this.targetRounds}) ---`);
+        this.startPhase('ASKING');
+    }
 
     // --- >>> NEW: Add AI Action Retry Helper <<< ---
     // Replace the attemptAIActionWithRetry method in GameSession class
@@ -634,32 +668,65 @@ class GameSession {
             });
     }
 
-    // calculateResults, checkGameEnd (keep as before)
+    // calculateResults (keep as before)
     calculateResults() { /* ... */ const vC={}; const act=this.players.filter(p=>p.status==='active'); act.forEach(p=>{vC[p.id]=0;}); this.votes.forEach((vId,voterId)=>{const vr=this.players.find(p=>p.id===voterId);if(vId!==null&&vC.hasOwnProperty(vId)&&vr?.status==='active'){vC[vId]++;}}); console.log(`Vote counts:`,vC); let maxV=0; for(const pId in vC){if(vC[pId]>maxV)maxV=vC[pId];} const elimIds=[],elimN=[];if(maxV>0){for(const pId in vC){if(vC[pId]===maxV){elimIds.push(pId);const p=this.players.find(pl=>pl.id===pId);if(p)elimN.push(p.name);}}} return{voteCounts:vC,eliminatedIds:elimIds,eliminatedNames:elimN}; }
+    // Modified checkGameEnd for Solo Mode
     checkGameEnd() {
-        const activeHumans = this.players.filter(p => p.status === 'active' && p.isHuman).length;
-        const activeAI = this.players.filter(p => p.status === 'active' && !p.isHuman).length;
-        
-        console.log(`End Check - H:${activeHumans}, A:${activeAI}`);
-        
-        if (activeAI === 0) {
-            this.endGame({
-                reason: "Humans win!",
-                winner: "humans"
-            });
-            return true;
+        const activeHumans = this.players.filter(p => p.status === 'active' && p.isHuman);
+        const activeAI = this.players.filter(p => p.status === 'active' && !p.isHuman);
+        const activeHumanCount = activeHumans.length;
+        const activeAICount = activeAI.length;
+
+        console.log(`Game ${this.id} End Check - Round: ${this.currentRound}, Solo: ${this.isSoloMode}, H:${activeHumanCount}, A:${activeAICount}`);
+
+        if (this.isSoloMode) {
+            // Solo Mode Logic:
+            // 1. Human eliminated?
+            if (activeHumanCount === 0) {
+                this.endGame({
+                    reason: "AI wins! You were eliminated.",
+                    winner: "ai", // Technically AI wins
+                    soloOutcome: "eliminated" // Specific outcome for client UI
+                });
+                return true;
+            }
+            // 2. Survived target rounds? (Check *after* the target round is completed)
+            if (this.currentRound >= this.targetRounds) {
+                 // Check if the human is still active *after* the final round's reveal
+                 const humanPlayer = activeHumans[0]; // Should only be one
+                 if (humanPlayer && humanPlayer.status === 'active') {
+                    this.endGame({
+                        reason: `You survived ${this.targetRounds} rounds!`,
+                        winner: "humans", // Human wins solo mode
+                        soloOutcome: "survived" // Specific outcome for client UI
+                    });
+                    return true;
+                 }
+                 // If human was eliminated in the *final* round's reveal, the first condition (activeHumanCount === 0) will catch it.
+            }
+            // 3. Game continues if neither condition met
+            return false;
+
+        } else {
+            // Original Multiplayer Logic:
+            if (activeAICount === 0) {
+                this.endGame({
+                    reason: "Humans win!",
+                    winner: "humans"
+                });
+                return true;
+            }
+            if (activeHumanCount === 0) {
+                this.endGame({
+                    reason: "AI wins!",
+                    winner: "ai"
+                });
+                return true;
+            }
+            return false;
         }
-        
-        if (activeHumans === 0) {
-            this.endGame({
-                reason: "AI wins!",
-                winner: "ai"
-            });
-            return true;
-        }
-        
-        return false;
     }
+
 
     // Action Handlers (keep as before)
     handlePlayerQuestion(playerId, questionText) {
@@ -815,18 +882,23 @@ class GameSession {
         const endData = typeof gameEndData === 'string' 
             ? { reason: gameEndData } 
             : gameEndData || { reason: "Game ended" };
-        
+
         console.log(`Game ${this.id}: End! ${endData.reason}`);
-        
+
         // Add timestamp and final player state
         endData.timestamp = Date.now();
         endData.finalState = {
             players: this.getPublicPlayerData(),
             round: this.currentRound
         };
-        
-        io.to(this.roomName).emit('game_over', endData);
-        
+
+        // Add soloOutcome if it's part of the endData (set in checkGameEnd for solo)
+        if (endData.soloOutcome) {
+            // No need to add it again, it's already in endData
+        }
+
+        io.to(this.roomName).emit('game_over', endData); // Send the potentially modified endData
+
         this.clearAllTimers();
         activeGames.delete(this.id);
         
@@ -987,7 +1059,40 @@ function setupPeriodicUISyncChecks() {
 
 // Helpers: broadcastWaitingCount, startGame (keep as before)
 function broadcastWaitingCount(){io.emit('waiting_player_count',waitingPlayers.size);}
-function startGame(playerSockets){ /* ... */ const gameId=nextGameId++;if(isNaN(gameId)){console.error("FATAL: gameId");return;} const session=new GameSession(gameId,playerSockets);activeGames.set(gameId,session);console.log(`Starting Game ${gameId}`);playerSockets.forEach(s=>{s.join(session.roomName);s.gameId=gameId;});const initialData={gameId:session.id,roomName:session.roomName,players:session.getPublicPlayerData(),yourPlayerId:null};if(isNaN(session.id)){console.error("FATAL: session.id");return;}playerSockets.forEach(s=>{const personalizedData={...initialData,yourPlayerId:s.id};s.emit('game_start',personalizedData);});session.startGameLoop();console.log(`Game ${gameId} loop started.`);}
+// Modified startGame to accept isSolo flag
+function startGame(playerSockets, isSolo = false){
+    const gameId=nextGameId++;
+    if(isNaN(gameId)){console.error("FATAL: gameId");return;}
+    const session=new GameSession(gameId, playerSockets, isSolo); // Pass isSolo flag
+    activeGames.set(gameId,session);
+    console.log(`Starting Game ${gameId} (Solo: ${isSolo})`);
+
+    const sockets = Array.isArray(playerSockets) ? playerSockets : [playerSockets]; // Ensure array
+
+    sockets.forEach(s=>{
+        s.join(session.roomName);
+        s.gameId=gameId;
+    });
+
+    // Add isSolo flag to initial data sent to clients
+    const initialData={
+        gameId:session.id,
+        roomName:session.roomName,
+        players:session.getPublicPlayerData(),
+        isSolo: isSolo, // Add the flag here
+        yourPlayerId:null
+    };
+
+    if(isNaN(session.id)){console.error("FATAL: session.id");return;}
+
+    sockets.forEach(s=>{
+        const personalizedData={...initialData,yourPlayerId:s.id};
+        s.emit('game_start',personalizedData);
+    });
+
+    session.startGameLoop();
+    console.log(`Game ${gameId} loop started.`);
+}
 
 // Socket.IO Connection Logic (keep listeners setup)
 io.on('connection', (socket) => {
@@ -1048,6 +1153,25 @@ io.on('connection', (socket) => {
 
     // Disconnect
     socket.on('disconnect', () => { console.log(`User disconnected: ${socket.id}`); if(waitingPlayers.has(socket)){waitingPlayers.delete(socket);broadcastWaitingCount();}else if(socket.gameId){const g=activeGames.get(socket.gameId);if(g){g.handleDisconnect(socket.id);}}});
+
+    // --- >>> NEW: Solo Game Listener <<< ---
+    socket.on('start_solo_game', () => {
+        console.log(`Player ${socket.id} requested Solo Survival game.`);
+        // Check if player is already in a game
+        if (socket.gameId && activeGames.has(socket.gameId)) {
+            console.log(`Player ${socket.id} is already in game ${socket.gameId}. Ignoring solo request.`);
+            socket.emit('action_error', { message: "You are already in a game." });
+            return;
+        }
+        // Remove from waiting list if present
+        if (waitingPlayers.has(socket)) {
+            waitingPlayers.delete(socket);
+            broadcastWaitingCount(); // Update count for others
+        }
+        // Start a solo game session
+        startGame(socket, true); // Pass the socket and isSolo=true flag
+    });
+    // --- >>> END Solo Game Listener <<< ---
 });
 
 // Add a debug endpoint to check game status
