@@ -1579,6 +1579,9 @@ function updatePhaseUI(data) {
             // Update phase indicator
             updatePhaseIndicator(data.phase);
 
+            // Update tips for the current phase
+            updateTipForPhase(data.phase);
+
             // Show/Hide correct rules box for the phase
             if (isSoloMode) {
                 if (rulesBoxSolo) rulesBoxSolo.style.display = 'block'; // Keep solo rules visible
@@ -1833,11 +1836,120 @@ if (document.readyState === 'loading') {
          setupEventListeners();
          setupAllFixedFunctionality(); // Call the new setup function
          setupInviteButton(); // Initialize invite button functionality
+         setupTipsSystem(); // Initialize tips system
      });
 } else {
      setupEventListeners(); // DOM already loaded
      setupAllFixedFunctionality(); // Call the new setup function
      setupInviteButton(); // Initialize invite button functionality
+     setupTipsSystem(); // Initialize tips system
 }
-console.log("App.js loaded.");
+    console.log("App.js loaded.");
 // Removed old setTimeout connection check - handled by updateConnectionStatus and heartbeat
+
+// --- Tips System ---
+let tipsEnabled = true; // Default to showing tips
+
+// Set up tips panel and load user preference
+function setupTipsSystem() {
+    // Check localStorage for user preference
+    const savedPreference = localStorage.getItem('turingHunt_showTips');
+    if (savedPreference !== null) {
+        tipsEnabled = savedPreference === 'true';
+    }
+    
+    // Add event listeners to controls
+    const toggleBtn = document.getElementById('tips-toggle');
+    
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', toggleAllTips);
+    }
+    
+    // Make the entire tips panel clickable to minimize/expand
+    const tipsPanel = document.getElementById('tips-panel');
+    if (tipsPanel) {
+        // Click on panel to minimize it
+        tipsPanel.addEventListener('click', function(e) {
+            // Don't minimize if clicking the toggle button
+            if (!e.target.closest('#tips-toggle')) {
+                if (tipsPanel.classList.contains('minimized')) {
+                    tipsPanel.classList.remove('minimized');
+                } else {
+                    tipsPanel.classList.add('minimized');
+                }
+            }
+        });
+        
+        // Hide tips panel initially until a game starts
+        if (!isInGame) {
+            tipsPanel.classList.add('hidden');
+        }
+    }
+    
+    // Initial update based on current phase (if in a game)
+    if (isInGame && currentPhase) {
+        updateTipForPhase(currentPhase);
+    }
+}
+
+// Toggle showing all tips and save preference
+function toggleAllTips() {
+    tipsEnabled = !tipsEnabled;
+    localStorage.setItem('turingHunt_showTips', tipsEnabled);
+    
+    const tipsPanel = document.getElementById('tips-panel');
+    if (tipsPanel) {
+        tipsPanel.classList.toggle('hidden', !tipsEnabled);
+    }
+}
+
+// Update tip content based on current phase
+function updateTipForPhase(phase) {
+    if (!tipsEnabled) return;
+    
+    const tipsPanel = document.getElementById('tips-panel');
+    const tipText = document.getElementById('tip-text');
+    
+    if (!tipsPanel || !tipText) return;
+    
+    // Remove minimized state when changing phases
+    tipsPanel.classList.remove('minimized');
+    
+    // Show the panel only for active game phases
+    let tip = '';
+    let shouldShowTip = true;
+    
+    switch(phase) {
+        case 'ASKING':
+            tip = isSoloMode ? 
+                "In Solo mode, ask questions that don't reveal that you're human." :
+                "Ask questions to find out if someone is an AI. Keep in mind that AI analyses your questions too.";
+            break;
+        case 'ANSWERING':
+            tip = isSoloMode ?
+                "In Solo survival, your answer needs to convince the AI opponents that you're not human." :
+                "Keep your answers natural but thoughtful. Too perfect or too random might give you away. Watch how others answer too!";
+            break;
+        case 'VOTING':
+            tip = isSoloMode ?
+                "In Solo mode, vote for an AI answer that other AIs might think is human. This will eliminate your AI opponents and increase your chance of survival." :
+                "Study each answer carefully. Look for inconsistencies, overly formal language, or responses that seem computer-generated.";
+            break;
+        case 'REVEAL':
+            tip = isSoloMode ?
+                "Learn from who was eliminated. If you survive this round, the next question will be harder!" :
+                "Pay attention to who was eliminated. Were they human or AI? This helps you identify patterns for future rounds!";
+            break;
+        default:
+            // No tip for other phases (waiting, etc.)
+            shouldShowTip = false;
+    }
+    
+    // Update visibility based on whether we have a tip for this phase
+    if (shouldShowTip) {
+        tipsPanel.classList.remove('hidden');
+        tipText.textContent = tip;
+    } else {
+        tipsPanel.classList.add('hidden');
+    }
+}

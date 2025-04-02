@@ -651,6 +651,76 @@ body.phase-reveal .phase-reveal {
     background-color: rgba(0, 0, 0, 0.05);
 }
 
+/* Tips Panel Styles */
+.tips-panel {
+  margin: 0.5rem 0 1.2rem;
+  padding: 0.9rem 1rem;
+  background-color: #EFF6FF; /* Light blue background */
+  border-left: 3px solid var(--color-accent);
+  border-radius: 0 var(--border-radius) var(--border-radius) 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  animation: fadeIn 0.5s ease-out;
+}
+
+.tips-panel.hidden {
+  display: none;
+}
+
+.tips-panel.minimized {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+
+.tips-panel.minimized .tips-content {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tips-title {
+  font-weight: 600;
+  color: var(--color-accent);
+  margin-right: 0.5rem;
+}
+
+.tips-controls {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.tips-toggle {
+  background: transparent;
+  border: none;
+  color: var(--color-text-subtle);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0.3rem 0.5rem;
+  text-decoration: underline;
+}
+
+.tips-toggle:hover {
+  color: var(--color-text);
+}
+
+/* When minimized, only show the icon */
+.tips-panel.minimized .tips-controls {
+  display: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .tips-toggle-text {
+    display: none;
+  }
+  
+  .tips-toggle:after {
+    content: "Hide all";
+  }
+}
+
 /* Debug Controls */
 .debug-controls {
     position: fixed;
