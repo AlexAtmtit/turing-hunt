@@ -237,7 +237,7 @@ p {
 
 /* Answer/Vote Details Area */
 .player-card .player-details {
-    font-size: 1rem;       /* Increased from 0.85rem */
+    font-size: 0.95rem;    /* Decreased from 1rem to make answer text smaller */
     margin: 0.25rem 0 0.75rem; /* More bottom space */
     padding: 0.7em 0.8em;  /* More padding */
     background-color: #F3F4F6; /* Slightly darker background */
@@ -791,7 +791,7 @@ body.phase-reveal .phase-reveal {
     padding: 10px 14px;
     margin: 15px auto 8px; /* More top margin for the tail */
     width: 90%;
-    font-size: 1.1rem;
+    font-size: 0.95rem;    /* Decreased from 1.1rem to make answer text smaller */
     line-height: 1.5;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
