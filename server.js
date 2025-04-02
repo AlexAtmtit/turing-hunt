@@ -1217,26 +1217,6 @@ io.on('connection', (socket) => {
     // --- >>> END Ready For Game Listener <<< ---
 });
 
-// Add a debug endpoint to check game status
-app.get('/api/game-status', (req, res) => {
-    const gameStatusInfo = Array.from(activeGames.entries()).map(([id, game]) => ({
-        id: id,
-        phase: game.currentPhase,
-        round: game.currentRound,
-        playersCount: game.players.length,
-        activePlayersCount: game.players.filter(p => p.status === 'active').length,
-        currentAskerId: game.currentAskerId,
-        questionText: game.currentQuestion,
-        answersCount: game.answers.size,
-        timeSincePhaseChange: Date.now() - game.lastPhaseChangeTime
-    }));
-    
-    res.json({
-        activeGames: gameStatusInfo,
-        waitingPlayers: waitingPlayers.size
-    });
-});
-
 // Start Server (keep as before)
 server.listen(PORT, ()=>{console.log(`Server listening on http://localhost:${PORT}`); console.log('Waiting...');});
 server.on('error', (e)=>{console.error('Server error:', e);});
