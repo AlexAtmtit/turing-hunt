@@ -97,8 +97,31 @@ body {
 h1 {
     font-size: 1.75rem;
     font-weight: 600;
-    margin: 0 0 1rem 0;
+    margin: 0;
     color: var(--color-text);
+}
+
+/* Title Container for responsive layout */
+.title-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+/* Game slogan styling */
+#game-slogan {
+    font-size: 0.75rem;
+    color: var(--color-text-subtle);
+    font-style: italic;
+    margin-top: 0.3rem;
+    line-height: 1.4;
+    font-weight: 400;
+}
+
+/* Show slogan only when game area is hidden (waiting screen) */
+body.game-active #game-slogan {
+    display: none !important;
 }
 
 p {
@@ -378,7 +401,12 @@ button.vote-button:disabled {
         /* 3 columns */
         grid-template-columns: repeat(3, 1fr);
     }
-     h1 { font-size: 2rem; }
+    h1 { font-size: 2rem; }
+    
+    /* Keep slogan below headline on desktop too */
+    #game-slogan {
+        font-size: 0.7rem; /* 1.5 times smaller than original */
+    }
 }
 
 /* --- Game Over State --- */

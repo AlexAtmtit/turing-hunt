@@ -831,8 +831,13 @@ function resetToWaitingScreen() {
     if (answerArea) answerArea.innerHTML = '';
     stopTimer();
     
-    // Remove game-over class if present
+    // Remove game-over class and game-active class if present
     document.body.classList.remove('game-over');
+    document.body.classList.remove('game-active');
+    
+    // Show the slogan element
+    const sloganElement = document.getElementById('game-slogan');
+    if (sloganElement) sloganElement.style.display = 'block';
     
     // Show temporary waiting message until we get the count from server
     if (statusMessage) statusMessage.innerHTML = 'Connecting to waiting room<span class="waiting-dots"></span>';
@@ -1250,6 +1255,13 @@ socket.on('game_start', (initialData) => {
     if (inputArea) inputArea.style.display = 'none';
     if (answerArea) answerArea.innerHTML = '';
     if (questionDisplay) questionDisplay.textContent = '';
+    
+    // Add game-active class to body to hide slogan
+    document.body.classList.add('game-active');
+    
+    // Directly hide the slogan element
+    const sloganElement = document.getElementById('game-slogan');
+    if (sloganElement) sloganElement.style.display = 'none';
 
     // Show the correct rules box based on mode
     if (isSoloMode) {
@@ -1679,6 +1691,11 @@ socket.on('game_over', (data) => {
         statusMessage.innerHTML = gameOverMsg;
     }
     document.body.classList.add('game-over');
+    document.body.classList.remove('game-active');
+    
+    // Show the slogan element
+    const sloganElement = document.getElementById('game-slogan');
+    if (sloganElement) sloganElement.style.display = 'block';
     // Hide all rules boxes on game over
     if (rulesBox) rulesBox.style.display = 'none';
     if (rulesBoxSolo) rulesBoxSolo.style.display = 'none';
