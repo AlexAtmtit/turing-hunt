@@ -1109,3 +1109,111 @@ body.phase-reveal .phase-reveal {
     from { opacity: 1; }
     to { opacity: 0; }
 }
+
+/* --- >>> NEW: AI Ad Spotter Styles <<< --- */
+#ai-ad-spotter {
+    background-color: #F9FAFB;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: 1rem 1.5rem;
+    margin-top: 1rem;
+    margin-bottom: 1.5rem;
+    /* Removed explicit width to match rules-box default behavior */
+}
+
+#ai-ad-spotter h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 0.75rem 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.ad-row {
+    display: flex;
+    flex-direction: column; /* Stack image and button vertically for all screen sizes */
+    align-items: center; /* Center items horizontally */
+    margin-bottom: 1.5rem; /* Increase bottom margin */
+    gap: 0.75rem; /* Space between image and button */
+}
+
+#ai-ad-spotter img {
+    max-width: 100%; /* Full width on mobile */
+    height: auto;
+    cursor: pointer;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+}
+
+/* Desktop styles */
+@media (min-width: 640px) {
+    #ai-ad-spotter img {
+        width: 400px; /* Fixed width on desktop */
+    }
+}
+
+/* Use existing vote-button styles, but ensure it fits */
+#ai-ad-spotter .ai-guess-button {
+    margin-top: 0.5rem; /* Add space above button */
+    padding: 0.6em 1.2em; /* Ensure decent padding */
+    width: auto; /* Allow button to size naturally */
+}
+
+.ad-result {
+    max-width: 100%; /* Ensure responsiveness */
+    margin-left: auto; /* Center the block */
+    margin-right: auto;
+    padding: 0.75rem 1rem;
+    margin-top: 0.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    background-color: #EFF6FF; /* Light blue background */
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+/* Desktop styles */
+@media (min-width: 640px) {
+    .ad-result {
+        width: 400px; /* Fixed width on desktop only */
+    }
+}
+
+.ad-result h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem 0;
+    color: var(--color-text);
+}
+
+.ad-result p {
+    margin-bottom: 0.75rem;
+    color: var(--color-text-subtle);
+}
+
+.ad-result a {
+    color: var(--color-accent);
+    font-weight: 500;
+    text-decoration: none;
+}
+.ad-result a:hover {
+    text-decoration: underline;
+}
+
+.ad-result ul {
+    list-style: none;
+    padding: 0;
+    margin: 0.75rem 0 0 0;
+}
+
+.ad-result li {
+    margin-bottom: 0.5rem;
+    color: var(--color-text-subtle);
+}
+
+.ad-result li b {
+    color: var(--color-text);
+}
+
+/* No need for responsive layout since we're using the same layout for all screen sizes */

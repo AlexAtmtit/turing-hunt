@@ -85,6 +85,25 @@
             <span class="connection-text">Connected</span>
         </div>
 
+        <!-- AI Ad Spotter Block (Visible on Waiting Screen) -->
+        <div id="ai-ad-spotter" style="display: none;"> <!-- Initially hidden, shown by JS -->
+            <h2>Can you spot the AI generated ad?</h2>
+            <div class="ad-row" id="ad-row-1">
+                <img src="/img/banner1.jpg" alt="Banner 1" id="banner1-img">
+                <button class="vote-button ai-guess-button" data-target="banner1">That's AI!</button>
+            </div>
+            <div class="ad-row" id="ad-row-2">
+                <img src="/img/banner2.jpg" alt="Banner 2" id="banner2-img">
+                <button class="vote-button ai-guess-button" data-target="banner2">That's AI!</button>
+            </div>
+            <div id="banner1-result" class="ad-result" style="display: none;">
+                <!-- Content added by JS -->
+            </div>
+            <div id="banner2-result" class="ad-result" style="display: none;">
+                <!-- Content added by JS -->
+            </div>
+        </div>
+
         <!-- Game Area: Displays players, question -->
         <div id="game-area" style="display: none;">
             <!-- Question Display -->

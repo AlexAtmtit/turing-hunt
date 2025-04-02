@@ -850,6 +850,14 @@ function resetToWaitingScreen() {
     // Show invite section
     const inviteSection = document.getElementById('invite-section');
     if (inviteSection) inviteSection.style.display = 'block';
+
+    // Show AI Ad Spotter and hide results
+    const adSpotter = getElem('ai-ad-spotter');
+    if (adSpotter) adSpotter.style.display = 'block';
+    const banner1Result = getElem('banner1-result');
+    if (banner1Result) banner1Result.style.display = 'none';
+    const banner2Result = getElem('banner2-result');
+    if (banner2Result) banner2Result.style.display = 'none';
     
     // Hide Play Again button
     const playAgainButton = document.getElementById('play-again-button');
@@ -1169,6 +1177,8 @@ socket.on('connect', () => {
     if (rulesBox) rulesBox.style.display = 'block'; // Show standard rules when waiting
     if (rulesBoxSolo) rulesBoxSolo.style.display = 'none'; // Hide solo rules
     if (rulesBoxGame) rulesBoxGame.style.display = 'none'; // Hide game rules
+    const adSpotter = getElem('ai-ad-spotter'); // Get ad spotter
+    if (adSpotter) adSpotter.style.display = 'block'; // Show ad spotter on connect/wait
     document.body.classList.remove('game-over');
     isSoloMode = false; // Reset solo mode on connect
     // Initial phase indicator state (optional, could be set by first phase event)
@@ -1184,6 +1194,8 @@ socket.on('disconnect', (reason) => {
     if (rulesBox) rulesBox.style.display = 'none'; // Hide all rules boxes on disconnect
     if (rulesBoxSolo) rulesBoxSolo.style.display = 'none';
     if (rulesBoxGame) rulesBoxGame.style.display = 'none';
+    const adSpotter = getElem('ai-ad-spotter'); // Get ad spotter
+    if (adSpotter) adSpotter.style.display = 'none'; // Hide ad spotter on disconnect
     stopTimer();
     // Clear phase indicator on disconnect
     updatePhaseIndicator(null);
@@ -1199,6 +1211,8 @@ socket.on('connect_error', (error) => {
     if (rulesBox) rulesBox.style.display = 'none'; // Hide all rules boxes on error
     if (rulesBoxSolo) rulesBoxSolo.style.display = 'none';
     if (rulesBoxGame) rulesBoxGame.style.display = 'none';
+    const adSpotter = getElem('ai-ad-spotter'); // Get ad spotter
+    if (adSpotter) adSpotter.style.display = 'none'; // Hide ad spotter on error
     stopTimer();
 });
 
@@ -1209,6 +1223,8 @@ socket.on('waiting_player_count', (count) => {
         if (rulesBox) rulesBox.style.display = 'block'; // Show standard rules
         if (rulesBoxSolo) rulesBoxSolo.style.display = 'none'; // Hide solo rules
         if (rulesBoxGame) rulesBoxGame.style.display = 'none'; // Hide game rules
+        const adSpotter = getElem('ai-ad-spotter'); // Get ad spotter
+        if (adSpotter) adSpotter.style.display = 'block'; // Show ad spotter when waiting
         if (gameArea) gameArea.style.display = 'none';
 
         // Show invite section when waiting
@@ -1277,6 +1293,10 @@ socket.on('game_start', (initialData) => {
     // Hide invite section when game starts
     const inviteSection = document.getElementById('invite-section');
     if (inviteSection) inviteSection.style.display = 'none';
+
+    // Hide AI Ad Spotter when game starts
+    const adSpotter = getElem('ai-ad-spotter');
+    if (adSpotter) adSpotter.style.display = 'none';
 
     // Update player list with a clean slate
     if (playerList) {
@@ -1385,6 +1405,8 @@ socket.on('new_round_phase', (data) => {
         if (rulesBox) rulesBox.style.display = 'none';
         if (rulesBoxSolo) rulesBoxSolo.style.display = 'none';
         if (rulesBoxGame) rulesBoxGame.style.display = 'none';
+        const adSpotter = getElem('ai-ad-spotter'); // Get ad spotter
+        if (adSpotter) adSpotter.style.display = 'none'; // Hide ad spotter during game phases
         if (statusMessage && statusMessage.querySelector('.waiting-dots')) {
             statusMessage.textContent = statusMessage.textContent;
         }
@@ -1700,6 +1722,8 @@ socket.on('game_over', (data) => {
     if (rulesBox) rulesBox.style.display = 'none';
     if (rulesBoxSolo) rulesBoxSolo.style.display = 'none';
     if (rulesBoxGame) rulesBoxGame.style.display = 'none';
+    const adSpotter = getElem('ai-ad-spotter'); // Get ad spotter
+    if (adSpotter) adSpotter.style.display = 'none'; // Hide ad spotter on game over
 
     // Show Play Again button
     const playAgainButton = document.getElementById('play-again-button');
@@ -1943,12 +1967,14 @@ if (document.readyState === 'loading') {
          setupAllFixedFunctionality(); // Call the new setup function
          setupInviteButton(); // Initialize invite button functionality
          setupTipsSystem(); // Initialize tips system
+         setupAdSpotter(); // Initialize AI Ad Spotter
      });
 } else {
      setupEventListeners(); // DOM already loaded
      setupAllFixedFunctionality(); // Call the new setup function
      setupInviteButton(); // Initialize invite button functionality
      setupTipsSystem(); // Initialize tips system
+     setupAdSpotter(); // Initialize AI Ad Spotter
 }
     console.log("App.js loaded.");
 // Removed old setTimeout connection check - handled by updateConnectionStatus and heartbeat
@@ -1997,6 +2023,78 @@ function setupTipsSystem() {
         updateTipForPhase(currentPhase);
     }
 }
+
+// --- >>> NEW: AI Ad Spotter Functionality <<< ---
+function setupAdSpotter() {
+    const banner1Img = getElem('banner1-img');
+    const banner2Img = getElem('banner2-img');
+    const guessButtons = document.querySelectorAll('#ai-ad-spotter .ai-guess-button'); // More specific selector
+    const banner1ResultDiv = getElem('banner1-result');
+    const banner2ResultDiv = getElem('banner2-result');
+
+    // Check if elements exist before proceeding
+    if (!banner1Img || !banner2Img || guessButtons.length === 0 || !banner1ResultDiv || !banner2ResultDiv) {
+        // Don't log warning in production, but good for dev
+        // console.warn("AI Ad Spotter elements not found or incomplete.");
+        return; // Exit if essential elements are missing
+    }
+
+    const courseLink = "https://alexonraw.com/practical-ai-video-course/";
+    const courseDetails = `
+        <ul>
+            <li>➡️ <b>You'll gain a clear understanding of today's AI landscape:</b> from ChatGPT and Gemini to Claude and DeepSeek. We'll cut through the noise to see which tools are worth your time and money.</li>
+            <li>➡️ <b>You'll master practical AI techniques for everyday tasks: </b> writing polished emails, creating interactive learning materials, analyzing documents, and crafting better content in a fraction of the usual time.</li>
+            <li>➡️ <b>You'll learn simple, effective techniques for communicating with AI:</b>  using screenshots to get help with anything on your screen, preparing human-like text in ChatGPT's Canvas mode, creating interactive content with Claude Artifacts, and prompting the reasoning models to get expert-level analysis instead of basic answers.</li>
+        </ul>
+        <p><a href="${courseLink}" target="_blank" rel="noopener noreferrer" style="font-size: 1rem; font-weight: 600; color: var(--color-text);">Start Watching for Free</a></p>`;
+
+    const showResult = (isCorrect, targetBanner) => {
+        // Ensure divs exist before manipulating
+        if (!banner1ResultDiv || !banner2ResultDiv) return;
+
+        // Always hide both results first
+        banner1ResultDiv.style.display = 'none';
+        banner2ResultDiv.style.display = 'none';
+
+        if (isCorrect) {
+            // Show Right! message below banner 2
+            banner2ResultDiv.innerHTML = `
+                <h4>Right! The second banner is AI generated.</h4>
+                <p>BTW, that's my course on AI and you can <a href="${courseLink}" target="_blank" rel="noopener noreferrer">start watching it here for free</a>.</p>
+                ${courseDetails}
+            `;
+            banner2ResultDiv.style.display = 'block';
+        } else {
+            // Show Almost! message below banner 1
+            banner1ResultDiv.innerHTML = `
+                <h4>Almost! The second banner is AI generated.</h4>
+                <p>BTW, that's my course on AI and you can <a href="${courseLink}" target="_blank" rel="noopener noreferrer">start watching  it here for free</a>.</p>
+                ${courseDetails}
+            `;
+            banner1ResultDiv.style.display = 'block';
+        }
+    };
+
+    // Event listener for Banner 1 image
+    banner1Img.addEventListener('click', () => showResult(false, 'banner1'));
+
+    // Event listener for Banner 2 image
+    banner2Img.addEventListener('click', () => showResult(true, 'banner2'));
+
+    // Event listeners for buttons
+    guessButtons.forEach(button => {
+        button.addEventListener('click', (event) => {
+            // Ensure the button has the data-target attribute
+            const target = event.currentTarget.dataset.target;
+            if (target === 'banner1') {
+                showResult(false, 'banner1');
+            } else if (target === 'banner2') {
+                showResult(true, 'banner2');
+            }
+        });
+    });
+}
+// --- >>> END AI Ad Spotter Functionality <<< ---
 
 // Toggle showing all tips and save preference
 function toggleAllTips() {
