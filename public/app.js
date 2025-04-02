@@ -812,6 +812,52 @@ function setupAllFixedFunctionality() {
 
 // --- End New Fix Functions ---
 
+// Function to reset to waiting screen
+function resetToWaitingScreen() {
+    console.log("Resetting to waiting screen");
+    
+    // Reset client-side game state
+    isInGame = false;
+    currentPhase = null;
+    currentAskerId = null;
+    hasVotedThisRound = false;
+    eliminatedPlayerRoles = {};
+    
+    // Reset UI
+    if (gameArea) gameArea.style.display = 'none';
+    if (inputArea) inputArea.style.display = 'none';
+    if (playerList) playerList.innerHTML = '';
+    if (questionDisplay) questionDisplay.textContent = '';
+    if (answerArea) answerArea.innerHTML = '';
+    stopTimer();
+    
+    // Remove game-over class if present
+    document.body.classList.remove('game-over');
+    
+    // Show temporary waiting message until we get the count from server
+    if (statusMessage) statusMessage.innerHTML = 'Connecting to waiting room<span class="waiting-dots"></span>';
+    
+    // Show standard rules
+    if (rulesBox) rulesBox.style.display = 'block';
+    if (rulesBoxSolo) rulesBoxSolo.style.display = 'none';
+    if (rulesBoxGame) rulesBoxGame.style.display = 'none';
+    
+    // Show invite section
+    const inviteSection = document.getElementById('invite-section');
+    if (inviteSection) inviteSection.style.display = 'block';
+    
+    // Hide Play Again button
+    const playAgainButton = document.getElementById('play-again-button');
+    if (playAgainButton) playAgainButton.style.display = 'none';
+    
+    // Tell the server we're ready for a new game
+    // The server will respond with a waiting_player_count event
+    socket.emit('ready_for_game');
+    
+    // The waiting_player_count event handler will update the status message
+    // with the correct player count
+}
+
 function startTimer(durationSeconds) {
     if (timerInterval) { clearInterval(timerInterval); }
     const durationMs = (typeof durationSeconds === 'number' && durationSeconds > 0) ? durationSeconds * 1000 : 0;
@@ -1638,7 +1684,17 @@ socket.on('game_over', (data) => {
     if (rulesBoxSolo) rulesBoxSolo.style.display = 'none';
     if (rulesBoxGame) rulesBoxGame.style.display = 'none';
 
-    isSoloMode = false; // Reset solo mode flag
+    // Show Play Again button
+    const playAgainButton = document.getElementById('play-again-button');
+    if (playAgainButton) {
+        playAgainButton.style.display = 'block';
+        
+        // Store the current mode for the Play Again button
+        playAgainButton.setAttribute('data-mode', isSoloMode ? 'solo' : 'multi');
+    }
+
+    // Don't reset solo mode flag here, we need it for the Play Again button
+    // isSoloMode = false; // Reset solo mode flag
 });
 socket.on('action_error', (data) => {
     console.warn("Action Err:", data); if (data?.message) alert(`Err: ${data.message}`);
@@ -1753,8 +1809,11 @@ function setupEventListeners() {
     const gameIn = getElem('game-input');
     const pList = getElem('player-list');
     const soloBtn = getElem('solo-survival-button'); // Get the solo button
+    const playAgainBtn = getElem('play-again-button'); // Get the Play Again button
+    const gameTitle = getElem('game-title'); // Get the game title heading
 
     if (submitBtn) { submitBtn.addEventListener('click', handleSubmit); } else { console.error("Submit btn missing"); }
+    
     if (soloBtn) { // Add listener for solo button
         soloBtn.addEventListener('click', () => {
             console.log("Solo Survival button clicked");
@@ -1762,12 +1821,42 @@ function setupEventListeners() {
             socket.emit('start_solo_game');
         });
     } else { console.error("Solo button missing"); }
+    
+    if (playAgainBtn) { // Add listener for Play Again button
+        playAgainBtn.addEventListener('click', () => {
+            console.log("Play Again button clicked");
+            
+            // Get the stored game mode
+            const gameMode = playAgainBtn.getAttribute('data-mode');
+            
+            if (gameMode === 'solo') {
+                // Start a new solo game
+                if (statusMessage) statusMessage.innerHTML = 'Starting Solo Game...';
+                socket.emit('start_solo_game');
+            } else {
+                // Return to waiting screen for multiplayer
+                resetToWaitingScreen();
+            }
+            
+            // Hide the Play Again button
+            playAgainBtn.style.display = 'none';
+        });
+    } else { console.error("Play Again button missing"); }
+    
+    if (gameTitle) { // Add listener for game title
+        gameTitle.addEventListener('click', () => {
+            console.log("Game title clicked");
+            resetToWaitingScreen();
+        });
+    } else { console.error("Game title missing"); }
+    
     if (gameIn) {
         gameIn.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); handleSubmit(); } });
         // --- >>> NEW: Clear validation on input <<< ---
         gameIn.addEventListener('input', clearValidationError);
         // --- >>> END Clear validation on input <<< ---
     } else { console.error("Input missing"); }
+    
     if (pList) {
         pList.addEventListener('click', (event) => {
             const voteButton = event.target.closest('.vote-button');

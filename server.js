@@ -1172,6 +1172,49 @@ io.on('connection', (socket) => {
         startGame(socket, true); // Pass the socket and isSolo=true flag
     });
     // --- >>> END Solo Game Listener <<< ---
+    
+    // --- >>> NEW: Ready For Game Listener <<< ---
+    socket.on('ready_for_game', () => {
+        console.log(`Player ${socket.id} is ready for a new game.`);
+        
+        // Clean up any existing game association
+        if (socket.gameId) {
+            const game = activeGames.get(socket.gameId);
+            if (game) {
+                // If player was in a game, handle disconnection properly
+                game.handleDisconnect(socket.id);
+            }
+            // Clear the game ID from the socket
+            delete socket.gameId;
+        }
+        
+        // Add player to waiting pool if not already there
+        if (!waitingPlayers.has(socket)) {
+            waitingPlayers.add(socket);
+            console.log(`Player ${socket.id} added to waiting pool. Total: ${waitingPlayers.size}`);
+            
+            // Check if we have enough players to start a game
+            if (waitingPlayers.size >= MAX_PLAYERS_FOR_GAME) {
+                const playersForGame = Array.from(waitingPlayers).slice(0, MAX_PLAYERS_FOR_GAME);
+                playersForGame.forEach(s => {
+                    waitingPlayers.delete(s);
+                });
+                startGame(playersForGame);
+            }
+        }
+        
+        // Only send waiting count to this specific player and other waiting players
+        // instead of broadcasting to all clients
+        socket.emit('waiting_player_count', waitingPlayers.size);
+        
+        // Also notify other waiting players (but not players still in games)
+        waitingPlayers.forEach(waitingSocket => {
+            if (waitingSocket.id !== socket.id) {
+                waitingSocket.emit('waiting_player_count', waitingPlayers.size);
+            }
+        });
+    });
+    // --- >>> END Ready For Game Listener <<< ---
 });
 
 // Add a debug endpoint to check game status

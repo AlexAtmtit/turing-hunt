@@ -928,6 +928,34 @@ body.phase-reveal .phase-reveal {
 }
 /* --- >>> END Validation Error Styles <<< --- */
 
+/* --- Play Again Button Styles --- */
+.play-again-button {
+    display: block;
+    margin: 1.5rem auto;
+    padding: 0.8em 1.5em;
+    background-color: var(--color-success);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    animation: fadeIn 0.5s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.play-again-button:hover {
+    background-color: #0ea271; /* Darker green */
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.play-again-button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
 /* Invite section styling */
 .invite-section {
     margin-bottom: 1.5rem;
