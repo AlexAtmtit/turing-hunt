@@ -125,6 +125,7 @@ const submitButton = getElem('submit-button');
 const rulesBox = getElem('rules-box');
 const rulesBoxSolo = getElem('rules-box-solo'); // Add reference for solo rules
 const rulesBoxGame = getElem('rules-box-game'); // Add reference for in-game rules
+const howToPlayVideo = getElem('how-to-play-video'); // Add reference for how-to-play video
 
 // --- Client State ---
 let isInGame = false;
@@ -854,6 +855,7 @@ function resetToWaitingScreen() {
     // Show AI Ad Spotter and hide results
     const adSpotter = getElem('ai-ad-spotter');
     if (adSpotter) adSpotter.style.display = 'block';
+    if (howToPlayVideo) howToPlayVideo.style.display = 'block'; // Show video block
     const banner1Result = getElem('banner1-result');
     if (banner1Result) banner1Result.style.display = 'none';
     const banner2Result = getElem('banner2-result');
@@ -1179,6 +1181,7 @@ socket.on('connect', () => {
     if (rulesBoxGame) rulesBoxGame.style.display = 'none'; // Hide game rules
     const adSpotter = getElem('ai-ad-spotter'); // Get ad spotter
     if (adSpotter) adSpotter.style.display = 'block'; // Show ad spotter on connect/wait
+    if (howToPlayVideo) howToPlayVideo.style.display = 'block'; // Show video block on connect/wait
     document.body.classList.remove('game-over');
     isSoloMode = false; // Reset solo mode on connect
     // Initial phase indicator state (optional, could be set by first phase event)
@@ -1196,6 +1199,7 @@ socket.on('disconnect', (reason) => {
     if (rulesBoxGame) rulesBoxGame.style.display = 'none';
     const adSpotter = getElem('ai-ad-spotter'); // Get ad spotter
     if (adSpotter) adSpotter.style.display = 'none'; // Hide ad spotter on disconnect
+    if (howToPlayVideo) howToPlayVideo.style.display = 'none'; // Hide video block on disconnect
     stopTimer();
     // Clear phase indicator on disconnect
     updatePhaseIndicator(null);
@@ -1213,6 +1217,7 @@ socket.on('connect_error', (error) => {
     if (rulesBoxGame) rulesBoxGame.style.display = 'none';
     const adSpotter = getElem('ai-ad-spotter'); // Get ad spotter
     if (adSpotter) adSpotter.style.display = 'none'; // Hide ad spotter on error
+    if (howToPlayVideo) howToPlayVideo.style.display = 'none'; // Hide video block on error
     stopTimer();
 });
 
@@ -1225,6 +1230,7 @@ socket.on('waiting_player_count', (count) => {
         if (rulesBoxGame) rulesBoxGame.style.display = 'none'; // Hide game rules
         const adSpotter = getElem('ai-ad-spotter'); // Get ad spotter
         if (adSpotter) adSpotter.style.display = 'block'; // Show ad spotter when waiting
+        if (howToPlayVideo) howToPlayVideo.style.display = 'block'; // Show video block when waiting
         if (gameArea) gameArea.style.display = 'none';
 
         // Show invite section when waiting
@@ -1294,9 +1300,10 @@ socket.on('game_start', (initialData) => {
     const inviteSection = document.getElementById('invite-section');
     if (inviteSection) inviteSection.style.display = 'none';
 
-    // Hide AI Ad Spotter when game starts
+    // Hide AI Ad Spotter and Video when game starts
     const adSpotter = getElem('ai-ad-spotter');
     if (adSpotter) adSpotter.style.display = 'none';
+    if (howToPlayVideo) howToPlayVideo.style.display = 'none';
 
     // Update player list with a clean slate
     if (playerList) {
@@ -1407,6 +1414,7 @@ socket.on('new_round_phase', (data) => {
         if (rulesBoxGame) rulesBoxGame.style.display = 'none';
         const adSpotter = getElem('ai-ad-spotter'); // Get ad spotter
         if (adSpotter) adSpotter.style.display = 'none'; // Hide ad spotter during game phases
+        if (howToPlayVideo) howToPlayVideo.style.display = 'none'; // Hide video block during game phases
         if (statusMessage && statusMessage.querySelector('.waiting-dots')) {
             statusMessage.textContent = statusMessage.textContent;
         }
@@ -1724,6 +1732,7 @@ socket.on('game_over', (data) => {
     if (rulesBoxGame) rulesBoxGame.style.display = 'none';
     const adSpotter = getElem('ai-ad-spotter'); // Get ad spotter
     if (adSpotter) adSpotter.style.display = 'none'; // Hide ad spotter on game over
+    if (howToPlayVideo) howToPlayVideo.style.display = 'none'; // Hide video block on game over
 
     // Show Play Again button
     const playAgainButton = document.getElementById('play-again-button');
