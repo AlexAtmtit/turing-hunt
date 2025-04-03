@@ -60,7 +60,7 @@ function isLikelyEnglish(text) {
   if (!text || typeof text !== 'string') return false; // Basic validation
 
   // Count non-Latin characters (allows basic Latin, numbers, punctuation and common symbols)
-  const nonLatinCharCount = text.replace(/[a-zA-Z0-9\s.,!?;:'"()&$#@%*+-]/g, '').length;
+  const nonLatinCharCount = text.replace(/[a-zA-Z0-9\s.,!?;:'’"()&$#@%*+-]/g, '').length;
 
   // Handle potential division by zero for empty strings after replacement
   if (text.length === 0) return true; // Consider empty string as "English" for this check
