@@ -1,7 +1,8 @@
-# Turing Hunt
+# Turing Hunt 🤔
 
 ## Overview
-Turing Hunt is a social deduction game where 3 human players compete against 3 AI players. The twist? Nobody knows who's human and who's AI! Ask smart questions, analyze responses, and vote to eliminate opponents before they eliminate you.
+Turing Hunt is a social deduction game where 3 human players compete against 3 AI players. 
+Nobody knows who's human and who's AI! Ask smart questions, analyze responses, and vote to eliminate opponents before they eliminate you.
 
 ## Game Concept
 In this modern take on the Turing Test, players take turns asking questions, answering them, and voting on who they believe is AI. Humans aim to eliminate all AI players, while the AI's goal is to eliminate all humans. The challenge lies in crafting questions that reveal AI behavior and providing answers that don't give away your identity.
