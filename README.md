@@ -8,7 +8,7 @@ Nobody knows who's human and who's AI! Ask smart questions, analyze responses, a
 
 ## How Do I Play this Game? [Watch the trailer (it's funny!)](https://vimeo.com/1072150708?share=copy)
 
-[![Watch the video](https://turinghunt.com/img/social.jpg)]([https://vimeo.com/1072150708](https://vimeo.com/1072150708?share=copy))
+[![Watch the video](https://turinghunt.com/img/social.jpg)](https://vimeo.com/1072150708)
 
 ## Game Concept
 In this modern take on the Turing Test, players take turns asking questions, answering them, and voting on who they believe is AI. Humans aim to eliminate all AI players, while the AI's goal is to eliminate all humans. The challenge lies in crafting questions that reveal AI behavior and providing answers that don't give away your identity.
